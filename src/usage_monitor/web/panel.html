@@ -160,6 +160,7 @@ const I18N = {
   en: {
     refresh: "Refresh",
     refreshing: "Refreshing…",
+    upToDate: "Already up to date (checked at most once a minute)",
     switchBest: "Switch to #{n} · {p}% free",
     noBest: "No account with room",
     online: "online",
@@ -218,6 +219,7 @@ const I18N = {
   es: {
     refresh: "Actualizar",
     refreshing: "Actualizando…",
+    upToDate: "Ya está al día (se consulta como mucho una vez por minuto)",
     switchBest: "Cambiar a #{n} · {p} % libre",
     noBest: "Sin cuenta con margen",
     online: "en línea",
@@ -276,6 +278,7 @@ const I18N = {
   zh: {
     refresh: "刷新",
     refreshing: "正在刷新…",
+    upToDate: "已是最新（每分钟最多查询一次）",
     switchBest: "切换到 #{n} · 剩余 {p}%",
     noBest: "没有可用余量的账号",
     online: "在线",
@@ -482,7 +485,7 @@ async function load() {
 }
 
 async function act(path, body, done) {
-  try { data = await api(path, body); render(); if (done) toast(done(data)); }
+  try { data = await api(path, body); render(); const msg = done && done(data); if (msg) toast(msg); }
   catch (e) { toast(e.message); }
 }
 
@@ -505,7 +508,8 @@ $("connect").onclick = () => act("/api/connect", {});
 $("switchBest").onclick = () => act("/api/switch", {}, switched);
 $("refresh").onclick = async () => {
   const b = $("refresh"); b.disabled = true; b.textContent = T("refreshing");
-  await act("/api/refresh", {});
+  const before = data && data.updated;
+  await act("/api/refresh", {}, (d) => (d.updated === before ? T("upToDate") : null));  // same data: the server skipped the fetch
   b.disabled = false; b.textContent = T("refresh");
 };
 

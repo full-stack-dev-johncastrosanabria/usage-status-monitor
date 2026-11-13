@@ -58,6 +58,7 @@ struct Strings {
         "en": [
             "refresh": "Refresh",
             "refreshing": "Refreshing…",
+            "upToDate": "Already up to date (checked at most once a minute)",
             "switchBest": "Switch to #{n} · {p}% free",
             "noBest": "No account with room",
             "online": "online",
@@ -123,6 +124,7 @@ struct Strings {
         "es": [
             "refresh": "Actualizar",
             "refreshing": "Actualizando…",
+            "upToDate": "Ya está al día (se consulta como mucho una vez por minuto)",
             "switchBest": "Cambiar a #{n} · {p} % libre",
             "noBest": "Sin cuenta con margen",
             "online": "en línea",
@@ -188,6 +190,7 @@ struct Strings {
         "zh": [
             "refresh": "刷新",
             "refreshing": "正在刷新…",
+            "upToDate": "已是最新（每分钟最多查询一次）",
             "switchBest": "切换到 #{n} · 剩余 {p}%",
             "noBest": "没有可用余量的账号",
             "online": "在线",

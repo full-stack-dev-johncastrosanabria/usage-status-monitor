@@ -53,7 +53,11 @@ final class Monitor {
     func refresh() {
         Task {
             refreshing = true
-            await perform("api/refresh", Backend.Command())
+            let before = payload?.updated
+            // the same data back means the server skipped the fetch (at most one a minute)
+            await perform("api/refresh", Backend.Command()) { payload, strings in
+                payload.updated == before ? strings("upToDate") : nil
+            }
             refreshing = false
         }
     }
