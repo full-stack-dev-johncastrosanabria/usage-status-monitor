@@ -1,0 +1,134 @@
+# usage-monitor
+
+How much is left on your AI accounts, in one place, and what to do when one runs out.
+
+- **Claude** (Pro/Max, several accounts), **ChatGPT/Codex**, **Antigravity** (per-model quota: Gemini, Claude, GPT) and **DeepSeek** (API balance).
+- A desktop alert when a limit reaches 95%.
+- Switch the Claude Code account in one click, or automatically when the active one hits the threshold.
+- Pick Claude Code's default model and effort.
+- A cyber-styled panel, a native macOS app, a Claude Code plugin and a CLI.
+- English, Spanish and Simplified Chinese.
+
+No dependencies: only the Python 3.12+ standard library.
+
+> **Unofficial project.** It reads the sessions that Claude Code, Codex CLI, Antigravity and opencode already keep
+> on your machine, and uses them to query the same internal services those tools use to show their usage. Those
+> services are undocumented and can change without notice. Credentials never leave your machine except to their own
+> provider, and this tool never refreshes or modifies them.
+
+## Install
+
+```sh
+uv tool install git+https://github.com/full-stack-dev-johncastrosanabria/usage-status-monitor
+usage            # status of every account
+usage panel      # open the panel
+```
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `usage` | Available usage of every account (`usage status --json` for scripts) |
+| `usage current` | Only the active Claude account |
+| `usage switch [N]` | Make account N active, or the one with the most room |
+| `usage autoswitch on\|off` | Switch automatically when the active account hits the threshold |
+| `usage claude [...]` | Run Claude Code with the active account |
+| `usage model [M]` · `usage effort [E]` | Claude Code's default model and effort |
+| `usage panel` | Open the panel (and start the local server) |
+| `usage autostart on\|off` | Open the panel when you log in |
+| `usage sync` | Share configuration and conversations across accounts |
+| `usage lang [en\|es\|zh]` | Interface language |
+| `usage watch` | Keep refreshing in the terminal |
+| `usage config` | Create or show the configuration file |
+
+### Several Claude accounts
+
+Claude Code keeps each account in a configuration folder. The main one is `~/.claude`; add the others like this:
+
+```sh
+CLAUDE_CONFIG_DIR=~/.claude-work claude     # inside: /login
+usage sync                                  # same configuration and conversations everywhere
+```
+
+`usage` finds every signed-in `~/.claude-*` folder by itself. To make `claude` always use the active account, add
+an alias to your shell:
+
+```sh
+alias claude='usage claude'                 # bash / zsh
+function claude { usage claude @args }      # PowerShell
+```
+
+A Claude Code session cannot change account while it is open. With shared conversations (`usage sync`), after
+switching you only need to exit and run `claude --continue` to carry on the same conversation with the new
+account. The plugin reminds you inside the session itself.
+
+### Automatic switch
+
+With `usage autoswitch on` (or the toggle in the panel), when the active account reaches the threshold the
+account with the most room becomes the active one and you get a notification. It runs while the panel server or
+the app is running, and it only switches to an account that is not over the threshold itself.
+
+### Panel
+
+`usage panel` opens the panel in its own window: the native app on macOS if it is installed, or an
+Edge/Chrome/Chromium window in app mode; otherwise a tab in the default browser. The server only listens on
+`127.0.0.1` and rejects requests coming from other websites.
+
+### macOS app
+
+```sh
+scripts/build-app.sh        # builds ~/Applications/UsageMonitor.app (needs the Xcode command line tools)
+```
+
+It shows the panel and a menu bar indicator with the % free on the active account.
+
+### Claude Code plugin
+
+```
+/plugin install usage-monitor --marketplace full-stack-dev-johncastrosanabria/usage-status-monitor
+```
+
+Adds `/usage-monitor:status` and `/usage-monitor:switch`, and tells the session when its account goes over the
+threshold or when you selected another account. It needs `usage` on the `PATH`.
+
+## Configuration
+
+`~/.config/usage-monitor/config.toml` (create it with `usage config`):
+
+```toml
+claude_order = ["main@example.com", "other@example.com"]  # order of the accounts
+alert_at = 95            # % used that triggers an alert and the automatic switch
+port = 8787              # local port of the panel
+refresh_seconds = 300    # how often usage is fetched (minimum 60)
+language = "en"          # "en", "es" or "zh"
+auto_switch = false
+```
+
+What you change from the panel or the CLI (language, automatic switch) is saved next to it in `prefs.json` and
+takes precedence.
+
+## Platform support
+
+| | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| Claude, ChatGPT/Codex, DeepSeek | ✅ | ✅ | ✅ |
+| Antigravity | ✅ | Secret Service (`secret-tool`) | Credential Manager |
+| Alerts | Notification Centre | `notify-send` | Windows notification |
+| Panel | Native app or window | Chromium window or browser | Edge/Chrome window or browser |
+| Start at login | LaunchAgent | `~/.config/autostart` | Startup folder |
+
+Day-to-day development and manual testing happen on macOS. Linux and Windows are covered by the test suite in
+continuous integration.
+
+## Development
+
+```sh
+uv sync
+uv run pytest
+uv run ruff check && uv run ruff format --check
+uv run mypy
+```
+
+Each provider lives in `src/usage_monitor/providers/` and exposes a `fetch()` and a pure `parse()`, which is what
+the tests cover. Interface text is English in the code; `src/usage_monitor/i18n.py` holds the Spanish and Chinese
+catalogues, and a test fails if a string is missing from either.
