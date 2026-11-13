@@ -14,7 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from . import __version__, accounts, config, desktop, i18n, settings, sync
+from . import __version__, accounts, config, connect, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
 from .config import Config, load_config, save_prefs
 from .i18n import tr
@@ -154,6 +154,19 @@ def cmd_sync(_: argparse.Namespace, __: Config) -> int:
             if getattr(e, "winerror", None) == 1314:
                 print(tr("On Windows, turn on Developer Mode to create links."), file=sys.stderr)
     return 1 if failed else 0
+
+
+def cmd_connect(_: argparse.Namespace, cfg: Config) -> int:
+    print(tr("Sign in with the new account in the browser that opens…"))
+    r = connect.run(cfg.claude_order, interactive=True)
+    messages = {
+        "connected": tr("Connected Claude #{n} ({email}).", n=r.number, email=r.email),
+        "duplicate": tr("{email} is already connected as #{n}.", email=r.email, n=r.number),
+        "cancelled": tr("Sign-in cancelled; nothing was added."),
+        "failed": tr("Could not connect: {error}", error=r.error),
+    }
+    print(messages[r.status], file=sys.stdout if r.status == "connected" else sys.stderr)
+    return 0 if r.status == "connected" else 1
 
 
 def cmd_autostart(args: argparse.Namespace, _: Config) -> int:
@@ -387,6 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
     srv.add_argument("--port", type=int, help=tr("port (default: the configured one)"))
     w = sub.add_parser("watch", help=tr("keep refreshing in the terminal"))
     w.add_argument("-n", "--seconds", type=int, default=300)
+    sub.add_parser("connect", help=tr("sign in another Claude account (opens the browser)"))
     sub.add_parser("sync", help=tr("share ~/.claude's configuration and conversations with every account"))
     sub.add_parser("config", help=tr("create or show the configuration file"))
     sub.add_parser("notice", help=tr("(Claude Code hook) tell the session when it should change account"))
@@ -406,6 +420,7 @@ COMMANDS: dict[str | None, Callable[[argparse.Namespace, Config], int]] = {
     "lang": cmd_lang,
     "server": cmd_server,
     "watch": cmd_watch,
+    "connect": cmd_connect,
     "sync": cmd_sync,
     "config": cmd_config,
     "notice": cmd_notice,

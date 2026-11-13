@@ -33,6 +33,12 @@ I18N: dict[str, dict[str, str]] = {
         "demo": "demo data",
         "secAccounts": "Claude accounts",
         "freeHint": "% free in each limit",
+        "connect": "+ Connect account",
+        "connectWaiting": "Waiting for the sign-in in your browser…",
+        "connectDone": "Connected #{n} ({email})",
+        "connectDup": "{email} is already connected as #{n}",
+        "connectCancelled": "Sign-in cancelled",
+        "connectFailed": "Could not connect: {error}",
         "secProviders": "Other providers",
         "secDefaults": "Claude Code defaults",
         "defaultsHint": "apply to new sessions",
@@ -85,6 +91,12 @@ I18N: dict[str, dict[str, str]] = {
         "demo": "datos de ejemplo",
         "secAccounts": "Cuentas de Claude",
         "freeHint": "% libre en cada límite",
+        "connect": "+ Conectar cuenta",
+        "connectWaiting": "Esperando el inicio de sesión en tu navegador…",
+        "connectDone": "Conectada la #{n} ({email})",
+        "connectDup": "{email} ya está conectada como #{n}",
+        "connectCancelled": "Inicio de sesión cancelado",
+        "connectFailed": "No se pudo conectar: {error}",
         "secProviders": "Otros proveedores",
         "secDefaults": "Valores por defecto de Claude Code",
         "defaultsHint": "se aplican a las sesiones nuevas",
@@ -137,6 +149,12 @@ I18N: dict[str, dict[str, str]] = {
         "demo": "示例数据",
         "secAccounts": "Claude 账号",
         "freeHint": "各项额度的剩余百分比",
+        "connect": "+ 连接账户",
+        "connectWaiting": "正在等待浏览器中的登录…",
+        "connectDone": "已连接 #{n}（{email}）",
+        "connectDup": "{email} 已作为 #{n} 连接",
+        "connectCancelled": "登录已取消",
+        "connectFailed": "无法连接：{error}",
         "secProviders": "其他服务",
         "secDefaults": "Claude Code 默认设置",
         "defaultsHint": "对新会话生效",
@@ -188,6 +206,23 @@ WEEKDAYS = {
 def tr(lang: str, key: str, **values: object) -> str:
     text = I18N.get(lang, I18N["en"]).get(key) or I18N["en"][key]
     return text.format(**values)
+
+
+CONNECT_KEYS = {
+    "waiting": "connectWaiting",
+    "connected": "connectDone",
+    "duplicate": "connectDup",
+    "cancelled": "connectCancelled",
+    "failed": "connectFailed",
+}
+
+
+def connect_text(state: dict[str, Any] | None, lang: str) -> str:
+    """The line next to the connect button ("" when there is nothing to say)."""
+    state = state or {}
+    key = CONNECT_KEYS.get(state.get("status", ""))
+    values = {"n": state.get("number") or "", "email": state.get("email") or "", "error": state.get("error") or ""}
+    return tr(lang, key, **values) if key else ""
 
 
 def whole(value: float) -> int:

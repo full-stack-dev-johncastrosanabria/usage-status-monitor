@@ -54,7 +54,7 @@ def _state_file(config_dir: Path | None) -> Path:
     return config.HOME / ".claude.json" if config_dir is None else config_dir / ".claude.json"
 
 
-def _email(config_dir: Path | None) -> str | None:
+def email_of(config_dir: Path | None) -> str | None:
     try:
         data = json.loads(_state_file(config_dir).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -72,7 +72,7 @@ def discover(order: tuple[str, ...] = ()) -> list[ClaudeAccount]:
 
     by_email: dict[str, Path | None] = {}
     for d in candidates:
-        email = _email(d)
+        email = email_of(d)
         if not email:
             continue
         if email not in by_email or d == cur:  # same account in two folders: the active one wins

@@ -89,6 +89,16 @@ struct Payload: Decodable {
     let languages: [String: String]
     /// The server is showing canned data (`USAGE_MONITOR_DEMO`).
     let demo: Bool?
+    /// How the last "connect account" went; missing from servers older than 0.2.
+    let connect: Connect?
+
+    struct Connect: Decodable {
+        /// idle, waiting, connected, duplicate, cancelled or failed
+        let status: String
+        let email: String?
+        let number: Int?
+        let error: String?
+    }
 
     var current: Account? { claude.first(where: \.current) }
     var bestAccount: Account? { claude.first { $0.n == best } }

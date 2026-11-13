@@ -298,10 +298,22 @@ class Window(Gtk.ApplicationWindow):
         if alert := self.alert(data):
             self.root.append(alert)
         self.section(self.t("secAccounts"), self.t("freeHint"), self.accounts(data))
+        self.root.append(self.connect_row(data))
         self.section(self.t("secProviders"), "", self.providers(data))
         if not self.compact:
             self.section(self.t("secDefaults"), self.t("defaultsHint"), self.defaults(data))
         return False
+
+    def connect_row(self, data: Payload) -> Gtk.Widget:
+        state = data.get("connect") or {"status": "idle"}
+        add = button(self.t("connect"), lambda: self.post("/api/connect", {}))
+        add.set_sensitive(state["status"] != "waiting" and not data.get("demo"))
+        row = hbox(add, spacing=14, margin_top=10)
+        if text := logic.connect_text(state, self.lang):
+            row.append(label(text, "dim"))
+        if state["status"] == "waiting":  # the new account appears as soon as its browser sign-in ends
+            GLib.timeout_add_seconds(3, lambda: self.post("/api/data", None) or False)
+        return row
 
     def section(self, title: str, hint: str, body: Gtk.Widget) -> None:
         head = hbox(label(title.upper(), "h2"), spacing=10, margin_top=18 if self.compact else 30, margin_bottom=6)

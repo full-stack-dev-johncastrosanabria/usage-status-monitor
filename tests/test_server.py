@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from usage_monitor import accounts, config, demo, server, settings, snapshot
+from usage_monitor import accounts, config, connect, demo, server, settings, snapshot
 from usage_monitor.alerts import Alert
 from usage_monitor.config import Config
 from usage_monitor.models import AccountStatus, ClaudeAccount, Snapshot, Usage, Window
@@ -160,3 +160,25 @@ def test_polls_every_minute_when_the_active_account_is_near_the_threshold(
     used["active"] = 81.0  # within 15 points of the 95% threshold
     monitor.refresh(force=True)
     assert monitor.next_delay() == 60
+
+
+def test_connect_runs_in_the_background_and_reports(api: Api, monkeypatch: pytest.MonkeyPatch) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def fake_run(order: tuple[str, ...]) -> connect.Result:
+        started.set()
+        release.wait(5)
+        return connect.Result("duplicate", "c1@x", 1)
+
+    monkeypatch.setattr(connect, "run", fake_run)
+    assert api("/api/data")[1]["connect"] == {"status": "idle"}
+    status, d = api("/api/connect", {})
+    assert status == 200 and d["connect"] == {"status": "waiting"} and started.wait(5)
+    assert api("/api/connect", {}) == (400, {"error": "A sign-in is already open in the browser."})
+    release.set()
+    for _ in range(50):
+        if (d := api("/api/data")[1])["connect"]["status"] != "waiting":
+            break
+        threading.Event().wait(0.05)
+    assert d["connect"] == {"status": "duplicate", "email": "c1@x", "number": 1, "error": None}

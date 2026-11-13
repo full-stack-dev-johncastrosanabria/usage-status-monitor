@@ -64,3 +64,10 @@ def test_server_command_prefers_the_packaged_backend(tmp_path: Path) -> None:
 
 def test_whole_rounds_half_up() -> None:
     assert [logic.whole(v) for v in (0.5, 1.5, 2.5, 2.49)] == [1, 2, 3, 2]
+
+
+def test_connect_text() -> None:
+    assert logic.connect_text(None, "en") == "" and logic.connect_text({"status": "idle"}, "en") == ""
+    assert logic.connect_text({"status": "duplicate", "email": "a@x", "number": 2}, "es") == (
+        "a@x ya está conectada como #2"
+    )

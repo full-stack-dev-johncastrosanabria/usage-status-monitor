@@ -51,6 +51,7 @@
   .opts button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: transparent; }
   .opts button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 
+  .under { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--dim); }
   .alert { display: none; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
            margin-top: 16px; padding: 10px 14px; border: 1px solid var(--bad); background: var(--bad-wash); }
   .alert.show { display: flex; }
@@ -141,6 +142,7 @@
 
   <h2><span id="hAccounts"></span><small id="hAccountsHint"></small></h2>
   <div class="scroll" id="accounts"></div>
+  <div class="under"><button id="connect" type="button"></button><span id="connectState" role="status"></span></div>
 
   <h2 id="hProviders"></h2>
   <div class="scroll" id="providers"></div>
@@ -168,6 +170,12 @@ const I18N = {
     demo: "demo data",
     secAccounts: "Claude accounts",
     freeHint: "% free in each limit",
+    connect: "+ Connect account",
+    connectWaiting: "Waiting for the sign-in in your browser…",
+    connectDone: "Connected #{n} ({email})",
+    connectDup: "{email} is already connected as #{n}",
+    connectCancelled: "Sign-in cancelled",
+    connectFailed: "Could not connect: {error}",
     secProviders: "Other providers",
     secDefaults: "Claude Code defaults",
     defaultsHint: "apply to new sessions",
@@ -220,6 +228,12 @@ const I18N = {
     demo: "datos de ejemplo",
     secAccounts: "Cuentas de Claude",
     freeHint: "% libre en cada límite",
+    connect: "+ Conectar cuenta",
+    connectWaiting: "Esperando el inicio de sesión en tu navegador…",
+    connectDone: "Conectada la #{n} ({email})",
+    connectDup: "{email} ya está conectada como #{n}",
+    connectCancelled: "Inicio de sesión cancelado",
+    connectFailed: "No se pudo conectar: {error}",
     secProviders: "Otros proveedores",
     secDefaults: "Valores por defecto de Claude Code",
     defaultsHint: "se aplican a las sesiones nuevas",
@@ -272,6 +286,12 @@ const I18N = {
     demo: "示例数据",
     secAccounts: "Claude 账号",
     freeHint: "各项额度的剩余百分比",
+    connect: "+ 连接账户",
+    connectWaiting: "正在等待浏览器中的登录…",
+    connectDone: "已连接 #{n}（{email}）",
+    connectDup: "{email} 已作为 #{n} 连接",
+    connectCancelled: "登录已取消",
+    connectFailed: "无法连接：{error}",
     secProviders: "其他服务",
     secDefaults: "Claude Code 默认设置",
     defaultsHint: "对新会话生效",
@@ -410,6 +430,17 @@ function render() {
   $("refresh").textContent = T("refresh");
   $("hAccounts").textContent = T("secAccounts");
   $("hAccountsHint").textContent = T("freeHint");
+  const c = data.connect || { status: "idle" };
+  $("connect").textContent = T("connect");
+  $("connect").disabled = c.status === "waiting" || data.demo;
+  $("connectState").textContent = {
+    waiting: T("connectWaiting"), cancelled: T("connectCancelled"),
+    connected: T("connectDone", { n: c.number, email: c.email || "" }),
+    duplicate: T("connectDup", { n: c.number, email: c.email || "" }),
+    failed: T("connectFailed", { error: c.error || "" }),
+  }[c.status] || "";
+  clearTimeout(render.poll);
+  if (c.status === "waiting") render.poll = setTimeout(load, 3000);  // the account appears as soon as it signs in
   $("hProviders").textContent = T("secProviders");
   $("hDefaults").textContent = T("secDefaults");
   $("hDefaultsHint").textContent = T("defaultsHint");
@@ -470,6 +501,7 @@ document.addEventListener("click", (e) => {
   else if (b.dataset.lang) act("/api/prefs", { language: b.dataset.lang });
   else if (b.dataset.auto) act("/api/prefs", { auto_switch: b.dataset.auto === "true" }, (d) => T("toastAuto", { state: T(d.auto_switch ? "on" : "off") }));
 });
+$("connect").onclick = () => act("/api/connect", {});
 $("switchBest").onclick = () => act("/api/switch", {}, switched);
 $("refresh").onclick = async () => {
   const b = $("refresh"); b.disabled = true; b.textContent = T("refreshing");
