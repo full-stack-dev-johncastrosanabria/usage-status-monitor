@@ -1,0 +1,84 @@
+<Window x:Class="UsageMonitor.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:ClassModifier="internal"
+        Title="usage-monitor" Width="1240" Height="900" MinWidth="340" MinHeight="240"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource Mono}" FontSize="13"
+        UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
+  <!-- The same sections as the web panel (src/usage_monitor/web/panel.html); the tables are built in code. -->
+  <Grid x:Name="Root" Background="{StaticResource Bg}">
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+      <StackPanel x:Name="Main" MaxWidth="1180" Margin="20,20,20,48">
+
+        <Border x:Name="Header" BorderBrush="{StaticResource LineStrong}" BorderThickness="0,0,0,1" Padding="0,0,0,14">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel x:Name="Brand" VerticalAlignment="Bottom">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="usage-monitor" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Bright}" />
+                <Border x:Name="DemoTag" Visibility="Collapsed" Margin="10,0,0,0" Padding="6,1" VerticalAlignment="Center"
+                        BorderBrush="{StaticResource Warn}" BorderThickness="1">
+                  <TextBlock x:Name="DemoText" FontSize="10" Foreground="{StaticResource Warn}" />
+                </Border>
+              </StackPanel>
+              <DockPanel x:Name="Status" Margin="0,5,0,0">
+                <Ellipse x:Name="Dot" Width="7" Height="7" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{StaticResource Dim}" />
+                <TextBlock x:Name="StatusText" Text="…" FontSize="12" Foreground="{StaticResource Dim}" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
+            </StackPanel>
+            <StackPanel x:Name="Tools" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+              <StackPanel x:Name="Langs" Orientation="Horizontal" Margin="0,0,12,0" />
+              <Button x:Name="RefreshButton" Margin="0,0,8,0" Click="OnRefresh" />
+              <Button x:Name="SwitchBestButton" Style="{StaticResource Primary}" IsEnabled="False" Click="OnSwitchBest" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border x:Name="Alert" Visibility="Collapsed" Margin="0,16,0,0" Padding="14,10"
+                BorderBrush="{StaticResource Bad}" BorderThickness="1" Background="{StaticResource BadWash}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="AlertText" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button x:Name="AlertButton" Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center"
+                    Style="{StaticResource Primary}" Click="OnAlertSwitch" />
+          </Grid>
+        </Border>
+
+        <StackPanel x:Name="AccountsHeading" Orientation="Horizontal" Margin="0,30,0,8">
+          <TextBlock x:Name="AccountsTitle" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Dim}" />
+          <TextBlock x:Name="AccountsHint" FontSize="11" Margin="10,0,0,0" Foreground="{StaticResource Dim}" />
+        </StackPanel>
+        <Border x:Name="AccountsHost" BorderBrush="{StaticResource Line}" BorderThickness="1" Background="{StaticResource Surface}" />
+
+        <TextBlock x:Name="ProvidersTitle" Margin="0,30,0,8" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Dim}" />
+        <Border x:Name="ProvidersHost" BorderBrush="{StaticResource Line}" BorderThickness="1" Background="{StaticResource Surface}" />
+
+        <StackPanel x:Name="Defaults">
+          <StackPanel Orientation="Horizontal" Margin="0,30,0,8">
+            <TextBlock x:Name="DefaultsTitle" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Dim}" />
+            <TextBlock x:Name="DefaultsHint" FontSize="11" Margin="10,0,0,0" Foreground="{StaticResource Dim}" />
+          </StackPanel>
+          <Border x:Name="DefaultsHost" BorderBrush="{StaticResource Line}" BorderThickness="1" Background="{StaticResource Surface}" />
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border x:Name="ToastBox" Opacity="0" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+            Margin="16,0,16,20" Padding="14,8" Background="{StaticResource Raised}"
+            BorderBrush="{StaticResource LineStrong}" BorderThickness="1">
+      <TextBlock x:Name="ToastText" FontSize="12" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+    </Border>
+  </Grid>
+</Window>
