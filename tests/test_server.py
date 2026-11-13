@@ -1,0 +1,116 @@
+from __future__ import annotations
+
+import json
+import threading
+import urllib.error
+import urllib.request
+from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from usage_monitor import accounts, config, server, settings
+from usage_monitor.alerts import Alert
+from usage_monitor.config import Config
+from usage_monitor.models import AccountStatus, ClaudeAccount, Snapshot, Usage, Window
+
+Api = Callable[..., tuple[int, Any]]
+
+
+@pytest.fixture
+def sent(monkeypatch: pytest.MonkeyPatch) -> list[Alert]:
+    alerts: list[Alert] = []
+    monkeypatch.setattr(server, "notify", alerts.append)
+    return alerts
+
+
+@pytest.fixture
+def api(home: Path, sent: list[Alert], monkeypatch: pytest.MonkeyPatch) -> Iterator[Api]:
+    """A real server on a free port, with a fixed Snapshot (no network) and a temporary settings.json."""
+    settings_path = home / "settings.json"
+    settings_path.write_text(json.dumps({"model": "opus", "effortLevel": "high"}))
+    monkeypatch.setattr(settings, "SETTINGS", settings_path)
+
+    def fake_collect(_: Config) -> Snapshot:
+        def mk(n: int, used: float) -> AccountStatus:
+            acc = ClaudeAccount(n, f"c{n}@x", home / f".claude-c{n}")
+            usage = Usage("pro", (Window("Session (5h)", used),))
+            return AccountStatus(acc, usage, current=acc.config_dir == accounts.selected_dir())
+
+        return Snapshot(
+            datetime.now(UTC), [mk(1, 97), mk(2, 40), mk(3, 10)], "not signed in", "not signed in", "no key"
+        )
+
+    monkeypatch.setattr(server, "collect", fake_collect)
+    accounts.set_current(ClaudeAccount(1, "c1@x", home / ".claude-c1"))
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.BaseHTTPRequestHandler)
+    port = httpd.server_address[1]
+    httpd.RequestHandlerClass = server.make_handler(server.Monitor(port))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+
+    def call(path: str, body: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> tuple[int, Any]:
+        hdrs = {server.HEADER: "1"} if headers is None else headers
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=data, headers=hdrs)
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read())
+
+    yield call
+    httpd.shutdown()
+
+
+def test_data_reports_best_account_and_settings(api: Api, sent: list[Alert]) -> None:
+    status, d = api("/api/data")
+    assert status == 200 and d["best"] == 3
+    assert [c["current"] for c in d["claude"]] == [True, False, False]
+    assert d["settings"]["model"] == "opus" and d["codex"] == {"error": "not signed in"}
+    assert (d["lang"], d["auto_switch"]) == ("en", False)
+    assert [a.title for a in sent] == ["Claude #1: Session (5h) at 97%"]
+
+
+def test_switch_to_best_and_to_explicit_account(api: Api, home: Path) -> None:
+    _, d = api("/api/switch", {})
+    assert [c["n"] for c in d["claude"] if c["current"]] == [3]
+    assert accounts.current_dir() == home / ".claude-c3"
+    _, d = api("/api/switch", {"n": 2})
+    assert [c["n"] for c in d["claude"] if c["current"]] == [2] and d["best"] == 3
+    assert api("/api/switch", {"n": 99}) == (400, {"error": "There is no account #99."})
+
+
+def test_settings_endpoint_validates(api: Api) -> None:
+    assert api("/api/settings", {"effort": "turbo"}) == (400, {"error": "unknown effort: turbo"})
+    status, d = api("/api/settings", {"effort": "max", "model": "sonnet"})
+    assert status == 200 and (d["settings"]["model"], d["settings"]["effort"]) == ("sonnet", "max")
+
+
+def test_language_preference_is_saved_and_relabels(api: Api) -> None:
+    assert api("/api/prefs", {"language": "xx"})[0] == 400
+    _, d = api("/api/prefs", {"language": "es"})
+    assert d["lang"] == "es" and config.load_config().language == "es"
+    assert d["settings"]["models"][0]["label"] == "Por defecto"
+    assert api("/api/switch", {"n": 99})[1] == {"error": "No hay cuenta #99."}
+
+
+def test_auto_switch_moves_to_the_best_account_and_notifies(api: Api, home: Path, sent: list[Alert]) -> None:
+    api("/api/data")
+    sent.clear()
+    _, d = api("/api/prefs", {"auto_switch": True})
+    assert d["auto_switch"] is True and accounts.selected_dir() == home / ".claude-c1"  # applies on the next fetch
+
+    monitor_refresh = api("/api/prefs", {"language": "zh"})  # a language change fetches again
+    assert monitor_refresh[0] == 200
+    assert accounts.selected_dir() == home / ".claude-c3"
+    assert len(sent) == 1 and "#3" in sent[0].title
+
+
+def test_rejects_cross_site_requests(api: Api) -> None:
+    assert api("/api/switch", {}, headers={})[0] == 403  # without the custom header
+    assert api("/api/data", headers={"Host": "evil.example"})[0] == 403  # DNS rebinding
+    assert api("/api/nothing", {})[0] == 404
