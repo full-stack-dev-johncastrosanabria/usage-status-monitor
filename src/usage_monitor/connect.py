@@ -50,7 +50,7 @@ def _forget(directory: Path) -> None:
 
 def run(order: tuple[str, ...] = (), interactive: bool = False) -> Result:
     """Signs a new folder in. `interactive` lets `claude auth login` use the terminal (the CLI)."""
-    if not (exe := shutil.which("claude")):
+    if not (exe := accounts.claude_exe()):
         return Result("failed", error="`claude` is not on the PATH")
     directory = next_dir()
     directory.mkdir(mode=0o700)

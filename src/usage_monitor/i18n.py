@@ -38,6 +38,7 @@ ES = {
     "Other": "Otros",
     "not signed in; open `{cmd}` and run /login": "sin sesión; abre `{cmd}` y ejecuta /login",
     "token expired; open `{cmd}` to refresh it": "token expirado; abre `{cmd}` para renovarlo",
+    "{plan} · idle": "{plan} · inactiva",
     "not signed in; run `codex login`": "sin sesión; ejecuta `codex login`",
     "Codex uses an API key, not a ChatGPT login: there are no plan limits": (
         "Codex usa una API key, no un inicio de sesión de ChatGPT: no hay límites de plan"
@@ -205,6 +206,7 @@ ZH = {
     "Other": "其他",
     "not signed in; open `{cmd}` and run /login": "未登录；请打开 `{cmd}` 并运行 /login",
     "token expired; open `{cmd}` to refresh it": "令牌已过期；请打开 `{cmd}` 以刷新",
+    "{plan} · idle": "{plan} · 闲置",
     "not signed in; run `codex login`": "未登录；请运行 `codex login`",
     "Codex uses an API key, not a ChatGPT login: there are no plan limits": (
         "Codex 使用的是 API 密钥而非 ChatGPT 登录：没有套餐额度"

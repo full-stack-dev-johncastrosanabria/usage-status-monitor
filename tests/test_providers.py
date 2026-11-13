@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from usage_monitor import i18n
-from usage_monitor.models import ProviderError, Window
+from usage_monitor.models import ClaudeAccount, ProviderError, Window
 from usage_monitor.providers import antigravity, claude, codex, copilot, deepseek
 
 CLAUDE = {
@@ -146,3 +147,31 @@ def test_copilot_gh_not_logged_in_is_not_signed_in(home: Path, monkeypatch: pyte
     monkeypatch.setattr(copilot, "_config_dir", lambda: home / "github-copilot")
     with pytest.raises(ProviderError, match="not signed in"):
         copilot.fetch()
+
+
+def test_claude_idle_account_shows_its_last_usage(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unused account's token expires, but its usage cannot change: the last numbers stand, resets applied."""
+    acc = ClaudeAccount(1, "a@x", home / ".claude-2")
+    creds = {"accessToken": "t", "expiresAt": (time.time() + 3600) * 1000, "subscriptionType": "pro"}
+    monkeypatch.setattr(claude, "read_secret", lambda service: json.dumps({"claudeAiOauth": creds}))
+    data = {
+        "limits": [
+            {"kind": "session", "percent": 40, "resets_at": "2000-01-01T00:00:00+00:00"},
+            {"kind": "weekly_all", "percent": 22, "resets_at": "2999-01-01T00:00:00+00:00"},
+        ]
+    }
+    monkeypatch.setattr(claude, "request_json", lambda url, headers: data)
+    claude.fetch(acc)
+
+    creds["expiresAt"] = 0
+    idle = claude.fetch(acc)
+    assert idle.plan == "pro · idle"
+    assert [w.used for w in idle.windows] == [0.0, 22.0]  # the session window has reset since
+
+
+def test_claude_expired_without_history_says_so(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        claude, "read_secret", lambda service: '{"claudeAiOauth": {"accessToken": "t", "expiresAt": 0}}'
+    )
+    with pytest.raises(ProviderError, match="expired"):
+        claude.fetch(ClaudeAccount(1, "a@x", None))

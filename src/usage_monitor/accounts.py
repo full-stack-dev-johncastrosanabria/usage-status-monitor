@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 
 from . import config
@@ -41,6 +42,22 @@ def current_dir() -> Path | None:
 
 def set_current(account: ClaudeAccount) -> None:
     atomic_write_text(config.active_file(), str(account.config_dir or ""))
+
+
+def claude_exe() -> str | None:
+    """`claude` on the PATH, or where the installers put it: an app opened from Finder lacks the shell's PATH."""
+    if exe := shutil.which("claude"):
+        return exe
+    home = config.HOME
+    places = (
+        home / ".local/bin/claude",
+        home / ".claude/local/claude",
+        home / ".local/share/fnm/aliases/default/bin/claude",
+        home / "Library/Application Support/fnm/aliases/default/bin/claude",
+        Path("/opt/homebrew/bin/claude"),
+        Path("/usr/local/bin/claude"),
+    )
+    return next((str(p) for p in places if os.access(p, os.X_OK)), None)
 
 
 def keychain_service(config_dir: Path | None) -> str:
