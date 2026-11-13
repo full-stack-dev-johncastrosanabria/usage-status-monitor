@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -58,4 +59,8 @@ def test_limit_labels_keep_first_seen_order() -> None:
 def test_server_command_prefers_the_packaged_backend(tmp_path: Path) -> None:
     (tmp_path / "usage_monitor").mkdir()
     (tmp_path / "usage_monitor" / "__main__.py").touch()
-    assert logic.server_command(tmp_path) == ["python3", "-m", "usage_monitor"]
+    assert logic.server_command(tmp_path) == [sys.executable, "-m", "usage_monitor"]
+
+
+def test_whole_rounds_half_up() -> None:
+    assert [logic.whole(v) for v in (0.5, 1.5, 2.5, 2.49)] == [1, 2, 3, 2]

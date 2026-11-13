@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
+import socket
+import sys
 import urllib.error
 import urllib.request
 from datetime import UTC, datetime
@@ -187,6 +190,11 @@ def tr(lang: str, key: str, **values: object) -> str:
     return text.format(**values)
 
 
+def whole(value: float) -> int:
+    """Rounds half up, like the panel's Math.round (Python's round() rounds half to even)."""
+    return math.floor(value + 0.5)
+
+
 def tone(free: float) -> str:
     """The meter colour: the same thresholds as the web panel."""
     return "ok" if free > 50 else "warn" if free > 20 else "bad"
@@ -238,11 +246,17 @@ def server_command(app_dir: Path | None = None) -> list[str] | None:
     """How to start `usage server`: the package installed next to the app, then PATH, then ~/.local/bin."""
     app_dir = app_dir or Path(__file__).resolve().parent.parent
     if (app_dir / "usage_monitor" / "__main__.py").exists():  # the .deb layout: /usr/lib/usage-monitor/
-        return ["python3", "-m", "usage_monitor"]
+        return [sys.executable, "-m", "usage_monitor"]  # run with PYTHONPATH=app_dir
     if exe := shutil.which("usage"):
         return [exe]
     local = Path.home() / ".local" / "bin" / "usage"
     return [str(local)] if local.exists() else None
+
+
+def is_up(port: int) -> bool:
+    with socket.socket() as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 class ApiError(Exception):
