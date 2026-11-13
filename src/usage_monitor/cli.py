@@ -12,7 +12,6 @@ import sys
 import time
 import urllib.request
 from collections.abc import Callable
-from pathlib import Path
 
 from . import __version__, accounts, config, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
@@ -21,6 +20,15 @@ from .i18n import tr
 from .server import is_running, serve
 from .snapshot import collect, collect_current, to_json
 from .term import print_snapshot
+
+
+def self_command() -> list[str]:
+    """How to run this program again from another process (the server, the start-at-login entry)."""
+    if getattr(sys, "frozen", False):  # a standalone build: the executable is the program
+        return [sys.executable]
+    if exe := shutil.which("usage"):
+        return [exe]
+    return [sys.executable, "-m", "usage_monitor"]
 
 
 def cmd_status(args: argparse.Namespace, cfg: Config) -> int:
@@ -87,7 +95,7 @@ def cmd_panel(_: argparse.Namespace, cfg: Config) -> int:
     if not is_running(cfg.port):
         config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         with (config.CONFIG_DIR / "server.log").open("a", encoding="utf-8") as log:
-            desktop.spawn_detached([sys.executable, "-m", "usage_monitor", "server"], log)
+            desktop.spawn_detached([*self_command(), "server"], log)
         for _attempt in range(50):
             if is_running(cfg.port):
                 break
@@ -132,8 +140,7 @@ def cmd_sync(_: argparse.Namespace, __: Config) -> int:
 
 
 def cmd_autostart(args: argparse.Namespace, _: Config) -> int:
-    exe = shutil.which("usage") or str(Path(sys.argv[0]).resolve())
-    path = desktop.set_autostart(args.state == "on", [exe, "panel"])
+    path = desktop.set_autostart(args.state == "on", [*self_command(), "panel"])
     state = tr("Start at login enabled ({path}).") if args.state == "on" else tr("Start at login disabled ({path}).")
     print(state.format(path=path))
     return 0
