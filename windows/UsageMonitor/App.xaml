@@ -16,6 +16,7 @@
     <SolidColorBrush x:Key="Accent" Color="#3fd07a" />
     <SolidColorBrush x:Key="AccentInk" Color="#06130b" />
     <SolidColorBrush x:Key="AccentWash" Color="#123fd07a" />
+    <SolidColorBrush x:Key="Ok" Color="#3fd07a" />
     <SolidColorBrush x:Key="Warn" Color="#d9a441" />
     <SolidColorBrush x:Key="Bad" Color="#e5534b" />
     <SolidColorBrush x:Key="BadWash" Color="#14e5534b" />

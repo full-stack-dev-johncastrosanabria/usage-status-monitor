@@ -75,7 +75,7 @@
       </StackPanel>
     </ScrollViewer>
 
-    <Border x:Name="Toast" Opacity="0" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+    <Border x:Name="ToastBox" Opacity="0" IsHitTestVisible="False" HorizontalAlignment="Center" VerticalAlignment="Bottom"
             Margin="16,0,16,20" Padding="14,8" Background="{StaticResource Raised}"
             BorderBrush="{StaticResource LineStrong}" BorderThickness="1">
       <TextBlock x:Name="ToastText" FontSize="12" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
