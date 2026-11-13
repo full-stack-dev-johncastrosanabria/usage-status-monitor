@@ -67,6 +67,22 @@ final class Monitor {
         }
     }
 
+    /// Opens the browser to sign another Claude account in; the payload reports how it goes.
+    func connectAccount() {
+        Task { await perform("api/connect", Backend.Command()) }
+    }
+
+    /// The line next to the connect button, or nil when there is nothing to say.
+    var connectState: String? {
+        guard let c = payload?.connect else { return nil }
+        let values = ["n": c.number.map(String.init) ?? "", "email": c.email ?? "", "error": c.error ?? ""]
+        let key = [
+            "waiting": "connectWaiting", "connected": "connectDone", "duplicate": "connectDup",
+            "cancelled": "connectCancelled", "failed": "connectFailed",
+        ][c.status]
+        return key.map { strings($0, values) }
+    }
+
     func setModel(_ model: String) { set(Backend.Command(model: model)) }
 
     func setEffort(_ effort: String) { set(Backend.Command(effort: effort)) }
@@ -120,7 +136,9 @@ final class Monitor {
         if offline, !Backend.isExternal { startServer() }
         while !Task.isCancelled {
             // a server that was just started takes a moment to answer
-            try? await Task.sleep(for: .seconds(payload == nil ? 1 : 30))
+            // a new account appears as soon as its browser sign-in ends
+            let waiting = payload?.connect?.status == "waiting"
+            try? await Task.sleep(for: .seconds(payload == nil ? 1 : waiting ? 3 : 30))
             await load()
         }
     }

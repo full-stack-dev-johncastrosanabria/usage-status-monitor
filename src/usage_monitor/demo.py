@@ -12,7 +12,7 @@ from typing import Any
 
 from . import settings
 from .models import AccountStatus, Balance, ClaudeAccount, Credits, Snapshot
-from .providers import antigravity, claude, codex
+from .providers import antigravity, claude, codex, copilot
 
 ENABLED = bool(os.environ.get("USAGE_MONITOR_DEMO"))
 _state = {"current": 1, "model": "opus", "effort": "high"}
@@ -78,7 +78,18 @@ def snapshot() -> Snapshot:
     }
     ag_usage = antigravity.parse({"models": models}, plan="ada@example.com · Google AI Pro")
     balance = Credits(True, (Balance("USD", 12.4, 2.0, 10.4),))
-    return Snapshot(datetime.now(UTC), statuses, codex_usage, ag_usage, balance)
+    copilot_usage = copilot.parse(
+        {
+            "copilot_plan": "individual",
+            "quota_reset_date": _in(400).date().isoformat(),
+            "quota_snapshots": {
+                "premium_interactions": {"percent_remaining": 42.0, "unlimited": False},
+                "chat": {"unlimited": True},
+                "completions": {"percent_remaining": 100.0, "unlimited": False},
+            },
+        }
+    )
+    return Snapshot(datetime.now(UTC), statuses, codex_usage, ag_usage, balance, copilot_usage)
 
 
 def select(number: int) -> None:

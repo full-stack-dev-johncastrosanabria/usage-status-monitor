@@ -75,6 +75,8 @@ struct Payload: Decodable {
     let codex: Usage
     let antigravity: Usage
     let deepseek: Credits
+    /// Missing from servers older than 0.2.
+    let copilot: Usage?
     /// Number of the account with the most room, when one beats the active account.
     let best: Int?
     /// % used from which the server alerts (and switches, if automatic switching is on).
@@ -87,6 +89,16 @@ struct Payload: Decodable {
     let languages: [String: String]
     /// The server is showing canned data (`USAGE_MONITOR_DEMO`).
     let demo: Bool?
+    /// How the last "connect account" went; missing from servers older than 0.2.
+    let connect: Connect?
+
+    struct Connect: Decodable {
+        /// idle, waiting, connected, duplicate, cancelled or failed
+        let status: String
+        let email: String?
+        let number: Int?
+        let error: String?
+    }
 
     var current: Account? { claude.first(where: \.current) }
     var bestAccount: Account? { claude.first { $0.n == best } }

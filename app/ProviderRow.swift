@@ -28,6 +28,7 @@ extension Payload {
     func providerRows(_ strings: Strings) -> [ProviderRow] {
         rows("ChatGPT / Codex", codex, strings) { $0.label }
             + rows("Antigravity", antigravity, strings) { row in row.group.map { "\($0) · \(row.label)" } ?? row.label }
+            + (copilot.map { rows("GitHub Copilot", $0, strings) { $0.label } } ?? [])
             + balanceRows(strings)
     }
 

@@ -74,6 +74,23 @@ ES = {
     "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
         "Cambió la cuenta: reabriendo esta conversación con {dir} en {s} s (Ctrl+C cancela)…"
     ),
+    "Not available with demo data.": ("No disponible con datos de demostración."),
+    "A sign-in is already open in the browser.": ("Ya hay un inicio de sesión abierto en el navegador."),
+    "Sign in with the new account in the browser that opens…": (
+        "Inicia sesión con la cuenta nueva en el navegador que se abre…"
+    ),
+    "Connected Claude #{n} ({email}).": ("Conectada Claude #{n} ({email})."),
+    "{email} is already connected as #{n}.": ("{email} ya está conectada como #{n}."),
+    "Sign-in cancelled; nothing was added.": ("Inicio de sesión cancelado; no se añadió nada."),
+    "Could not connect: {error}": ("No se pudo conectar: {error}"),
+    "sign in another Claude account (opens the browser)": ("conectar otra cuenta de Claude (abre el navegador)"),
+    "Premium requests": "Solicitudes premium",
+    "Chat": "Chat",
+    "Completions": "Autocompletado",
+    "Unlimited": "Ilimitado",
+    "not signed in; run `gh auth login` or sign in to Copilot in your editor": (
+        "sin sesión; ejecuta `gh auth login` o inicia sesión en Copilot en tu editor"
+    ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "sal y ejecuta `claude --continue` para seguir esta conversación con la #{n}"
     ),
@@ -221,6 +238,21 @@ ZH = {
     "type /exit and this conversation reopens on #{n} by itself": "输入 /exit，这段对话会自动用 #{n} 重新打开",
     "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
         "账户已切换：{s} 秒后用 {dir} 重新打开这段对话（Ctrl+C 取消）…"
+    ),
+    "Not available with demo data.": ("演示数据下不可用。"),
+    "A sign-in is already open in the browser.": ("浏览器中已有一个登录正在进行。"),
+    "Sign in with the new account in the browser that opens…": ("请在打开的浏览器中登录新账户…"),
+    "Connected Claude #{n} ({email}).": ("已连接 Claude #{n}（{email}）。"),
+    "{email} is already connected as #{n}.": ("{email} 已作为 #{n} 连接。"),
+    "Sign-in cancelled; nothing was added.": ("登录已取消，未添加任何账户。"),
+    "Could not connect: {error}": ("无法连接：{error}"),
+    "sign in another Claude account (opens the browser)": ("登录另一个 Claude 账户（会打开浏览器）"),
+    "Premium requests": "高级请求",
+    "Chat": "聊天",
+    "Completions": "代码补全",
+    "Unlimited": "无限制",
+    "not signed in; run `gh auth login` or sign in to Copilot in your editor": (
+        "未登录；请运行 `gh auth login` 或在编辑器中登录 Copilot"
     ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "请退出并运行 `claude --continue`，用 #{n} 继续这段对话"

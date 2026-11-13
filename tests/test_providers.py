@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
 
 from usage_monitor import i18n
-from usage_monitor.models import Window
-from usage_monitor.providers import antigravity, claude, codex, deepseek
+from usage_monitor.models import ProviderError, Window
+from usage_monitor.providers import antigravity, claude, codex, copilot, deepseek
 
 CLAUDE = {
     "limits": [
@@ -100,3 +104,45 @@ def test_deepseek_balance() -> None:
         }
     )
     assert c.available and c.balances[0].total == 5.33 and c.balances[0].currency == "USD"
+
+
+def test_copilot_premium_blocks_and_unlimited_is_skipped() -> None:
+    u = copilot.parse(
+        {
+            "copilot_plan": "individual",
+            "quota_reset_date": "2026-12-01",
+            "quota_snapshots": {
+                "premium_interactions": {"entitlement": 300, "percent_remaining": 20.0, "unlimited": False},
+                "chat": {"unlimited": True},
+                "completions": {"entitlement": 2000, "percent_remaining": 90.0, "unlimited": False},
+            },
+        }
+    )
+    assert u.plan == "individual"
+    assert [(w.label, w.used, w.blocking) for w in u.windows] == [
+        ("Premium requests", 80.0, True),
+        ("Completions", 10.0, False),
+    ]
+    assert u.windows[0].resets_at == datetime(2026, 12, 1, tzinfo=UTC)
+
+
+def test_copilot_all_unlimited_reports_it() -> None:
+    u = copilot.parse({"copilot_plan": "business", "quota_snapshots": {"chat": {"unlimited": True}}})
+    assert [(w.label, w.used) for w in u.windows] == [("Unlimited", 0.0)]
+
+
+def test_copilot_token_from_apps_json_then_gh(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(copilot, "_gh_token", lambda: None)
+    monkeypatch.setattr(copilot, "_config_dir", lambda: home / "github-copilot")  # same on every OS
+    assert copilot.token() is None
+    apps = home / "github-copilot" / "apps.json"
+    apps.parent.mkdir(parents=True)
+    apps.write_text(json.dumps({"github.com:Iv1.b507a08c87ecfe98": {"oauth_token": "gho_x"}}))
+    assert copilot.token() == "gho_x"
+
+
+def test_copilot_gh_not_logged_in_is_not_signed_in(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(copilot, "_gh_token", lambda: None)
+    monkeypatch.setattr(copilot, "_config_dir", lambda: home / "github-copilot")
+    with pytest.raises(ProviderError, match="not signed in"):
+        copilot.fetch()

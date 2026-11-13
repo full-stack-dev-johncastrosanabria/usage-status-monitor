@@ -7,19 +7,21 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
-from . import __version__, accounts, config, desktop, i18n, settings, sync
+from . import __version__, accounts, config, connect, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
 from .config import Config, load_config, save_prefs
 from .i18n import tr
 from .server import is_running, local_json, port_in_use, serve
 from .snapshot import collect, collect_current, to_json
-from .system import atomic_write_text
+from .system import QUIET, atomic_write_text
 from .term import print_snapshot
 
 
@@ -155,6 +157,19 @@ def cmd_sync(_: argparse.Namespace, __: Config) -> int:
     return 1 if failed else 0
 
 
+def cmd_connect(_: argparse.Namespace, cfg: Config) -> int:
+    print(tr("Sign in with the new account in the browser that opens…"))
+    r = connect.run(cfg.claude_order, interactive=True)
+    messages = {
+        "connected": tr("Connected Claude #{n} ({email}).", n=r.number, email=r.email),
+        "duplicate": tr("{email} is already connected as #{n}.", email=r.email, n=r.number),
+        "cancelled": tr("Sign-in cancelled; nothing was added."),
+        "failed": tr("Could not connect: {error}", error=r.error),
+    }
+    print(messages[r.status], file=sys.stdout if r.status == "connected" else sys.stderr)
+    return 0 if r.status == "connected" else 1
+
+
 def cmd_autostart(args: argparse.Namespace, _: Config) -> int:
     path = desktop.set_autostart(args.state == "on", [*self_command(), "panel"])
     state = tr("Start at login enabled ({path}).") if args.state == "on" else tr("Start at login disabled ({path}).")
@@ -213,11 +228,15 @@ def hook_messages(cfg: Config) -> list[str]:
 
 
 def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
-    """Claude Code hook (UserPromptSubmit). It never fails: a broken hook would nag on every message."""
+    """Claude Code hook (SessionStart, UserPromptSubmit, Stop). It never fails: a broken hook would nag on every
+    message. It also tells the launcher which conversation runs and whether Claude is answering."""
     try:
         hook = json.loads(sys.stdin.read() or "{}") if not sys.stdin.isatty() else {}
-        if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str):
-            atomic_write_text(launch, sid)  # the launcher reopens exactly this conversation
+        event = hook.get("hook_event_name")
+        if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str) and _ours(launch, hook):
+            atomic_write_text(launch, json.dumps({"session": sid, "busy": event == "UserPromptSubmit"}))
+        if event == "Stop":
+            return 0
         text = " · ".join(hook_messages(cfg))
         state_file = config.CONFIG_DIR / "notices.json"
         try:
@@ -233,50 +252,195 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
 
 
 REOPEN_DELAY = 3  # seconds to cancel (Ctrl+C) before reopening on the new account
-LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # set by the launcher: /exit reopens the conversation by itself
+POLL, EXHAUSTED_EVERY = 1.0, 10.0  # seconds between checks of the selection / of the server's usage cache
+LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # set by the launcher: lets the hook report the session to it
+# sent to Claude (not translated) when the switch cut a reply short
+CONTINUE = "Continue where you left off: the account was switched because the previous one ran out."
 
 
 def _launch_file() -> Path | None:
-    """Where the hook leaves the session id for the launcher that started it (keyed by its process id)."""
+    """Where the hook reports to the launcher that started it (keyed by its process id)."""
     token = os.environ.get(LAUNCHER, "")
     return config.CONFIG_DIR / "launches" / token if token.isdigit() else None
 
 
-def _without_resume(args: list[str]) -> list[str]:
-    """Drops -c/--continue and -r/--resume [id]: the reopened session names its conversation itself."""
-    out, skip = [], False
-    for a in args:
-        if skip and not a.startswith("-"):
-            skip = False
+def _ours(launch: Path, hook: dict[str, Any]) -> bool:
+    """Is this hook from the session the launcher started? A `claude` that session runs inherits the launcher's
+    variable too: its other session id is ignored, unless the session itself moved on (/clear, /resume)."""
+    known = _launch_state(launch).get("session")
+    if known in (None, hook.get("session_id")):
+        return True
+    return hook.get("hook_event_name") == "SessionStart" and hook.get("source") in ("clear", "resume", "compact")
+
+
+def _launch_state(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _exhausted(directory: Path | None) -> bool:
+    """Is the account in `directory` at 100% of a blocking limit? Read from the local server's cache only."""
+    cfg = load_config()
+    mine = next((a for a in accounts.discover(cfg.claude_order) if a.config_dir == directory), None)
+    try:
+        payload = local_json(cfg.port, "/api/data")
+    except (OSError, ValueError):
+        return False
+    acc = next((c for c in payload.get("claude", []) if mine and c.get("n") == mine.number), None)
+    if acc is None:
+        return False
+    return any(r.get("blocking") and r.get("used", 0) >= 100 for r in acc.get("rows", []))
+
+
+# Claude Code options and their values (`claude --help`); what is left over is the prompt, already sent.
+# shortcut: fixed lists; an option added later that takes a value loses it on reopen until it is listed here
+VALUE_OPTIONS = frozenset(
+    [
+        "--agent",
+        "--agents",
+        "--append-system-prompt",
+        "--autocompact",
+        "--debug-file",
+        "--effort",
+        "--environment",
+        "--fallback-model",
+        "--input-format",
+        "--json-schema",
+        "--max-budget-usd",
+        "--model",
+        "-n",
+        "--name",
+        "--output-format",
+        "--permission-mode",
+        "--permission-prompts",
+        "--plugin-url",
+        "--remote-control-session-name-prefix",
+        "--session-id",
+        "--setting-sources",
+        "--settings",
+        "--system-prompt",
+        "--system-prompt-snapshot",
+    ]
+)
+MANY_VALUES = frozenset(
+    [
+        "--add-dir",
+        "--allowedTools",
+        "--allowed-tools",
+        "--betas",
+        "--disallowedTools",
+        "--disallowed-tools",
+        "--file",
+        "--mcp-config",
+        "--plugin-dir",
+        "--tools",
+    ]
+)
+OPTIONAL_VALUE = frozenset(
+    ["-d", "--debug", "-w", "--worktree", "--remote-control", "--teleport", "--cloud", "--from-pr"]
+)
+
+
+def _reopen_args(args: list[str]) -> list[str]:
+    """The options to reopen with: without -c/--continue, -r/--resume [id] (the session is named instead) and
+    the initial prompt. The last free word is always the prompt, never an option's value."""
+    out: list[str] = []
+    i, n = 0, len(args)
+
+    def free_word() -> bool:  # the next word is an option's value, not the final prompt
+        return i < n - 1 and not args[i].startswith("-")
+
+    while i < n:
+        a = args[i]
+        i += 1
+        if a in ("-c", "--continue") or a.startswith("--resume=") or not a.startswith("-"):
             continue
-        skip = a in ("-r", "--resume")
-        if not (skip or a in ("-c", "--continue") or a.startswith("--resume=")):
-            out.append(a)
+        if a in ("-r", "--resume"):
+            i += free_word()
+            continue
+        out.append(a)
+        if (a in VALUE_OPTIONS and i < n) or (a in OPTIONAL_VALUE and free_word()):
+            out.append(args[i])
+            i += 1
+        elif a in MANY_VALUES:
+            while free_word():
+                out.append(args[i])
+                i += 1
     return out
+
+
+def _run(cmd: list[str], env: dict[str, str], used: Path | None, launch: Path, watch: bool) -> tuple[int, bool]:
+    """Runs Claude Code. With `watch`, stops it once another account is selected and Claude is not answering
+    (or its account is exhausted, so nothing is lost). Returns (exit code, whether a reply was cut short)."""
+    # Ctrl+C belongs to Claude Code, which gets it too: the launcher must outlive it (a handler, not SIG_IGN,
+    # which the child would inherit)
+    previous = signal.signal(signal.SIGINT, lambda *_: None)
+    try:
+        return _watch(subprocess.Popen(cmd, env=env), used, launch, watch)
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
+def _stop(proc: subprocess.Popen[bytes]) -> None:
+    """Closes Claude Code and what it started (MCP servers, `claude.cmd`'s node on Windows)."""
+    if sys.platform == "win32":  # terminate() there is TerminateProcess on the top process only
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False, **QUIET)
+    else:
+        proc.terminate()  # the transcript is already on disk: --resume picks it up
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+def _watch(proc: subprocess.Popen[bytes], used: Path | None, launch: Path, watch: bool) -> tuple[int, bool]:
+    checked = -EXHAUSTED_EVERY
+    while (code := proc.poll()) is None:
+        time.sleep(POLL)
+        if not watch or accounts.selected_dir() == used:
+            continue
+        busy = bool(_launch_state(launch).get("busy"))
+        if busy:
+            if time.monotonic() - checked < EXHAUSTED_EVERY:
+                continue
+            checked = time.monotonic()
+            if not _exhausted(used):
+                continue
+        _stop(proc)
+        return 0, busy
+    return code, False
 
 
 def launch_claude(args: list[str]) -> int:
     """`usage claude …`: runs Claude Code with the selected account (the same in any shell and system).
 
-    A running session cannot change account. If the selection changes while it runs (`usage switch`, the
-    panel or the automatic switch), leaving it with /exit reopens the same conversation on the new account.
+    A running session cannot change account, so when another account is selected (`usage switch`, the panel or
+    the automatic switch) the launcher closes Claude Code between replies and reopens the same conversation on
+    the new account. A reply cut short by an exhausted account is resumed with a "continue" prompt.
     """
     exe = shutil.which("claude")
     if exe is None:
         print(tr("error: `claude` is not on the PATH."), file=sys.stderr)
         return 127
     pinned = bool(os.environ.get("CLAUDE_CONFIG_DIR"))  # an explicit folder is never second-guessed
+    oneshot = "-p" in args or "--print" in args
     token = str(os.getpid())
     launch = config.CONFIG_DIR / "launches" / token
+    base, run_args = _reopen_args(args), args
     try:
         while True:
+            launch.unlink(missing_ok=True)  # only this run's session may report
             env = os.environ | {LAUNCHER: token}
             used = accounts.selected_dir()
             if not pinned and used:
                 env["CLAUDE_CONFIG_DIR"] = str(used)
-            code = subprocess.call([exe, *args], env=env)
+            code, cut = _run([exe, *run_args], env, used, launch, watch=not (pinned or oneshot))
             now = accounts.selected_dir()
-            if pinned or now == used or "-p" in args or "--print" in args:
+            if pinned or oneshot or now == used:
                 return code
             print(
                 tr(
@@ -286,11 +450,11 @@ def launch_claude(args: list[str]) -> int:
                 )
             )
             time.sleep(REOPEN_DELAY)
-            try:  # the id the hook saw last; without it, the latest conversation in this folder
-                which = ["--resume", launch.read_text(encoding="utf-8").strip()]
-            except OSError:
-                which = ["--continue"]
-            args = [*which, *_without_resume(args)]
+            sid = _launch_state(launch).get("session")
+            # no conversation reported yet (still on a startup dialog): start over the way the user did
+            run_args = ["--resume", sid, *base] if isinstance(sid, str) and sid else list(args)
+            if cut:
+                run_args.append(CONTINUE)
     except KeyboardInterrupt:
         return 130
     finally:
@@ -325,6 +489,7 @@ def build_parser() -> argparse.ArgumentParser:
     srv.add_argument("--port", type=int, help=tr("port (default: the configured one)"))
     w = sub.add_parser("watch", help=tr("keep refreshing in the terminal"))
     w.add_argument("-n", "--seconds", type=int, default=300)
+    sub.add_parser("connect", help=tr("sign in another Claude account (opens the browser)"))
     sub.add_parser("sync", help=tr("share ~/.claude's configuration and conversations with every account"))
     sub.add_parser("config", help=tr("create or show the configuration file"))
     sub.add_parser("notice", help=tr("(Claude Code hook) tell the session when it should change account"))
@@ -344,6 +509,7 @@ COMMANDS: dict[str | None, Callable[[argparse.Namespace, Config], int]] = {
     "lang": cmd_lang,
     "server": cmd_server,
     "watch": cmd_watch,
+    "connect": cmd_connect,
     "sync": cmd_sync,
     "config": cmd_config,
     "notice": cmd_notice,

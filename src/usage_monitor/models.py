@@ -94,6 +94,7 @@ class Snapshot:
     codex: Usage | str | None = None
     antigravity: Usage | str | None = None
     deepseek: Credits | str | None = None
+    copilot: Usage | str | None = None
 
     def best(self) -> AccountStatus | None:
         """The non-active Claude account with the most room, or None if none has any."""

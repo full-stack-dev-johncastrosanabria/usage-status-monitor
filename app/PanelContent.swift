@@ -25,6 +25,15 @@ struct PanelContent: View {
                 } else {
                     AccountsTable(accounts: payload.claude, best: payload.best, labels: payload.limitLabels)
                 }
+                HStack(spacing: 14) {
+                    Button(strings("connect")) { monitor.connectAccount() }
+                        .buttonStyle(ConsoleButtonStyle())
+                        .disabled(payload.connect?.status == "waiting" || payload.demo == true)
+                    if let state = monitor.connectState {
+                        Text(state).foregroundStyle(Theme.dim)
+                    }
+                }
+                .padding(.top, 10)
                 SectionTitle(title: strings("secProviders"))
                 let rows = payload.providerRows(strings)
                 if compact {

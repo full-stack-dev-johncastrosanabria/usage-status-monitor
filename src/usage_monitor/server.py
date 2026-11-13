@@ -9,11 +9,12 @@ import socket
 import threading
 import time
 import urllib.request
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from typing import Any
 
-from . import __version__, accounts, demo, i18n, settings
+from . import __version__, accounts, connect, demo, i18n, settings
 from .alerts import AlertTracker, auto_switch
 from .config import Config, load_config, save_prefs
 from .desktop import notify
@@ -38,6 +39,8 @@ class Monitor:
         self._snap: Snapshot | None = None
         self._last = 0.0
         self._fetch_lock = threading.Lock()  # serialises fetches; reads never wait
+        self.connecting: dict[str, Any] = {"status": "idle"}
+        self._connect_lock = threading.Lock()  # one browser sign-in at a time, even with two quick clicks
 
     def config(self) -> Config:
         """Reloaded on every use, so changes from the CLI or the panel apply without a restart."""
@@ -112,9 +115,29 @@ class Monitor:
             # keep them as keys in the Snapshot instead if that extra request ever matters
             self.refresh(force=True)
 
+    def connect(self) -> None:
+        """Starts signing in another Claude account in the browser; the payload reports how it goes."""
+        if demo.ENABLED:
+            raise ValueError(tr("Not available with demo data."))
+        with self._connect_lock:
+            if self.connecting["status"] == "waiting":
+                raise ValueError(tr("A sign-in is already open in the browser."))
+            self.connecting = {"status": "waiting"}
+        threading.Thread(target=self._connect, daemon=True, name="connect").start()
+
+    def _connect(self) -> None:
+        try:
+            result = connect.run(self.config().claude_order)
+        except Exception as e:  # the thread must always report back
+            log.exception("connecting an account failed")
+            result = connect.Result("failed", error=str(e))
+        self.connecting = dataclasses.asdict(result)
+        if result.status == "connected":
+            self.refresh(force=True)
+
     def payload(self) -> dict[str, Any]:
         cfg = self.config()
-        return to_json(self.snapshot(), cfg)
+        return to_json(self.snapshot(), cfg) | {"connect": self.connecting}
 
     def next_delay(self) -> int:
         """Seconds until the next fetch: the configured interval, or a minute once the active account is near
@@ -202,8 +225,9 @@ def make_handler(monitor: Monitor) -> type[BaseHTTPRequestHandler]:
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError(tr("a JSON object was expected"))
-            if self.path == "/api/refresh":
-                monitor.refresh()
+            plain: dict[str, Callable[[], object]] = {"/api/refresh": monitor.refresh, "/api/connect": monitor.connect}
+            if action := plain.get(self.path):
+                action()
             elif self.path == "/api/switch":
                 n = body.get("n")
                 if n is not None and (isinstance(n, bool) or not isinstance(n, int)):
