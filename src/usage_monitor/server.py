@@ -23,6 +23,7 @@ from .snapshot import collect, to_json
 log = logging.getLogger(__name__)
 MIN_GAP = 60  # "Refresh" does not hit the APIs more than once a minute
 HEADER = "X-Usage-Monitor"  # required on writes; see Handler.do_POST
+NEAR_MARGIN, NEAR_INTERVAL = 15, 60  # within 15 points of the threshold, fetch every minute
 
 
 class Monitor:
@@ -100,13 +101,21 @@ class Monitor:
         cfg = self.config()
         return to_json(self.snapshot(), cfg)
 
+    def next_delay(self) -> int:
+        """Seconds until the next fetch: the configured interval, or a minute once the active account is near
+        the threshold. Heavy parallel use can burn the last 15% within one normal interval."""
+        cfg = self.config()
+        cur = self._snap.current() if self._snap else None
+        near = bool(cur and cur.usage and cur.usage.hottest(cfg.alert_at - NEAR_MARGIN))
+        return min(cfg.refresh_seconds, NEAR_INTERVAL) if near else cfg.refresh_seconds
+
     def run_forever(self) -> None:
         while True:
             try:
                 self.refresh(force=True)
             except Exception:  # the server must not die because of one bad cycle
                 log.exception("refresh failed")
-            time.sleep(self.config().refresh_seconds)
+            time.sleep(self.next_delay())
 
 
 def make_handler(monitor: Monitor) -> type[BaseHTTPRequestHandler]:

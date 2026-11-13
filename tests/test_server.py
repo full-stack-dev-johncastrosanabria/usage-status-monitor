@@ -131,3 +131,25 @@ def test_demo_mode_never_touches_real_accounts_or_settings(home: Path, monkeypat
     assert [c["n"] for c in monitor.payload()["claude"] if c["current"]] == [2]
     assert snapshot.collect(config.load_config()).current().account.number == 2  # type: ignore[union-attr]
     assert not config.active_file().exists()  # the real selection is untouched
+
+
+def test_polls_every_minute_when_the_active_account_is_near_the_threshold(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    used = {"active": 40.0}
+
+    def fake_collect(_: Config) -> Snapshot:
+        usage = Usage("pro", (Window("Session (5h)", used["active"]), Window("Weekly (Fable)", 99, blocking=False)))
+        return Snapshot(datetime.now(UTC), [AccountStatus(ClaudeAccount(1, "a@x", None), usage, current=True)])
+
+    monkeypatch.setattr(server, "collect", fake_collect)
+    monkeypatch.setattr(server, "notify", lambda alert: None)
+    monitor = server.Monitor(port=1)
+    assert monitor.next_delay() == 300  # nothing fetched yet
+
+    monitor.refresh(force=True)
+    assert monitor.next_delay() == 300  # 40% used; the per-model cap at 99% does not block, so it does not count
+
+    used["active"] = 81.0  # within 15 points of the 95% threshold
+    monitor.refresh(force=True)
+    assert monitor.next_delay() == 60
