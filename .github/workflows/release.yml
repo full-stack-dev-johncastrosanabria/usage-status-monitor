@@ -20,6 +20,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+      - name: Use Xcode 26 (Liquid Glass needs the macOS 26 SDK)
+        run: |
+          xcode=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode" && xcodebuild -version
       - run: scripts/package-macos.sh
       - uses: actions/upload-artifact@v4
         with: { name: "macos-${{ matrix.runner }}", path: dist/macos/*.dmg }
