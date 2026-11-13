@@ -6,12 +6,21 @@ import SwiftUI
 struct DataTable<Cells: View>: View {
     let columns: [TableLayout.Column]
     @ViewBuilder let cells: Cells
+    @Environment(\.flatChrome) private var flatChrome
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             TableLayout(columns: columns) { cells }
-            ScrollView(.horizontal) {
+            if flatChrome {
+                // `ImageRenderer` (the snapshot) draws a ScrollView as an empty box: clip it as if scrolled to the start
                 TableLayout(columns: columns) { cells }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .clipped()
+            } else {
+                ScrollView(.horizontal) {
+                    TableLayout(columns: columns) { cells }
+                }
             }
         }
         .tableFrame()
