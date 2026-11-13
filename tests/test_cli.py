@@ -193,3 +193,14 @@ def test_launcher_leaves_a_pinned_folder_alone(home: Path, monkeypatch: pytest.M
     runs = fake_claude(monkeypatch, session)
     assert cli.launch_claude([]) == 0
     assert len(runs) == 1 and runs[0].terminated_at is None
+
+
+def test_launcher_without_a_reported_session_starts_over(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def session(proc: FakeClaude) -> None:
+        switch_to_b(home)  # still on a startup dialog: the hook has not reported any conversation
+
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    runs = fake_claude(monkeypatch, session, exits(0))
+    accounts.set_current(ClaudeAccount(1, "a@x", home / ".claude-a"))
+    assert cli.launch_claude(["--chrome", "hola"]) == 0
+    assert runs[1].cmd[1:] == ["--chrome", "hola"] and runs[1].env["CLAUDE_CONFIG_DIR"] == str(home / ".claude-b")

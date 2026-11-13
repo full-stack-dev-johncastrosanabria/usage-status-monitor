@@ -348,9 +348,11 @@ def launch_claude(args: list[str]) -> int:
                 )
             )
             time.sleep(REOPEN_DELAY)
-            sid = _launch_state(launch).get("session")  # without it, the latest conversation in this folder
-            which = ["--resume", sid] if isinstance(sid, str) and sid else ["--continue"]
-            run_args = [*which, *base, *([CONTINUE] if cut else [])]
+            sid = _launch_state(launch).get("session")
+            # no conversation reported yet (still on a startup dialog): start over the way the user did
+            run_args = ["--resume", sid, *base] if isinstance(sid, str) and sid else list(args)
+            if cut:
+                run_args.append(CONTINUE)
     except KeyboardInterrupt:
         return 130
     finally:
