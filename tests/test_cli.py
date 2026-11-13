@@ -26,6 +26,7 @@ class FakeClaude:
         self.code: int | None = None
         self.ticks = 0
         self.terminated_at: int | None = None
+        self.pid = 4000 + id(self) % 1000
 
     def poll(self) -> int | None:
         if self.code is None:
@@ -49,6 +50,15 @@ def fake_claude(monkeypatch: pytest.MonkeyPatch, *scripts: Callable[[FakeClaude]
     monkeypatch.setattr(cli.shutil, "which", lambda name: "/bin/claude" if name == "claude" else None)
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, env: runs.append(FakeClaude(cmd, env, next(todo))) or runs[-1])
     monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    real_run = subprocess.run
+
+    def run(cmd: list[str], *args: object, **kwargs: object) -> object:  # Windows closes the tree with taskkill
+        if cmd[0] == "taskkill":
+            next(r for r in runs if str(r.pid) == cmd[-1]).terminate()
+            return subprocess.CompletedProcess(cmd, 0)
+        return real_run(cmd, *args, **kwargs)  # type: ignore[call-overload]
+
+    monkeypatch.setattr(subprocess, "run", run)
     return runs
 
 
