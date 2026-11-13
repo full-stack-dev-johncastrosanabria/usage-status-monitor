@@ -91,7 +91,7 @@ struct Payload: Decodable {
     let demo: Bool?
     /// How the last "connect account" went; missing from servers older than 0.2.
     let connect: Connect?
-    /// The latest alerts, oldest first; missing from servers older than 0.3.
+    /// The latest alerts, oldest first; missing from servers older than 0.2.1.
     let notices: [Notice]?
 
     struct Notice: Decodable {
