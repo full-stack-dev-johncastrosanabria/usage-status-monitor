@@ -15,5 +15,11 @@ if [ -f assets/icon.icns ]; then
     cp assets/icon.icns "$APP/Contents/Resources/icon.icns"
     plutil -replace CFBundleIconFile -string icon "$APP/Contents/Info.plist"
 fi
+# An app that already bundles the backend (installed from a release) would otherwise keep running the old one
+if [ -d "$APP/Contents/Resources/backend" ]; then
+    scripts/build-standalone.sh >/dev/null
+    rm -rf "$APP/Contents/Resources/backend"
+    cp -R dist/standalone/usage "$APP/Contents/Resources/backend"
+fi
 codesign --force --sign - "$APP"  # local (ad hoc) signature: enough to run it on this Mac
 echo "$APP"
