@@ -43,6 +43,7 @@ partial class MainWindow : Window
     {
         this.api = api;
         InitializeComponent();
+        Height = Math.Min(Height, SystemParameters.WorkArea.Height - 32);  // fits small and scaled screens
         toastTimer.Tick += (_, _) =>
         {
             toastTimer.Stop();
