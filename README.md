@@ -43,17 +43,19 @@ Download the installer for your system from [Releases](../../releases):
 
 | System | File | First launch |
 | --- | --- | --- |
-| macOS (Apple Silicon / Intel) | `UsageMonitor-<version>-arm64.dmg` / `-x86_64.dmg` | Drag to Applications, then right-click → **Open** |
+| macOS (Apple Silicon / Intel) | `UsageMonitor-<version>-arm64.dmg` / `-x86_64.dmg` | Drag to Applications, open it once, then **System Settings → Privacy & Security → Open Anyway** |
 | Windows x64 | `UsageMonitor-<version>-win-x64.zip` | Unzip, run `UsageMonitor.exe`, then **More info → Run anyway** |
 | Debian / Ubuntu | `usage-monitor_<version>_all.deb` | `sudo apt install ./usage-monitor_<version>_all.deb` |
 
 > **The installers are not signed yet.** macOS Gatekeeper and Windows SmartScreen warn the first time you open
-> them; the steps above get past the warning. Check the download against `SHA256SUMS.txt` on the release page.
+> them; the steps above get past the warning (the Homebrew install too). Check the download against `SHA256SUMS.txt` on the release page.
 
 With [Homebrew](https://brew.sh) on macOS (app + `usage` command):
 
 ```sh
-brew install --cask full-stack-dev-johncastrosanabria/tap/usage-monitor
+brew tap full-stack-dev-johncastrosanabria/tap
+brew trust full-stack-dev-johncastrosanabria/tap
+brew install --cask usage-monitor
 ```
 
 Command line only, on any system with [uv](https://docs.astral.sh/uv/):
