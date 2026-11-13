@@ -1,9 +1,26 @@
 {
-  "description": "Tells the session when its account goes over the usage threshold or when another account was selected.",
+  "description": "Tells the session when its account goes over the usage threshold or another account was selected, and records the session id so a switch reopens this exact conversation.",
   "hooks": {
     "UserPromptSubmit": [
       {
-        "hooks": [{ "type": "command", "command": "usage notice", "timeout": 5 }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "usage notice",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "usage notice",
+            "timeout": 5
+          }
+        ]
       }
     ]
   }

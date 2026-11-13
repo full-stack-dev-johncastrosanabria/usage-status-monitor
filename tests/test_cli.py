@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import argparse
+import io
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +97,10 @@ def test_launcher_reopens_the_conversation_after_an_account_change(home: Path, m
 
     def fake_call(cmd: list[str], env: dict[str, str]) -> int:
         runs.append((cmd[1:], env.get("CLAUDE_CONFIG_DIR")))
-        if len(runs) == 1:  # the automatic switch happens while the first session runs
+        if len(runs) == 1:  # the hook records the session; the automatic switch happens while it runs
+            monkeypatch.setattr(sys, "stdin", io.StringIO('{"session_id": "abc-123"}'))
+            monkeypatch.setenv(cli.LAUNCHER, env[cli.LAUNCHER])
+            cli.cmd_notice(argparse.Namespace(), Config())
             accounts.set_current(ClaudeAccount(2, "b@x", home / ".claude-b"))
         return 0
 
@@ -107,5 +113,5 @@ def test_launcher_reopens_the_conversation_after_an_account_change(home: Path, m
     assert cli.launch_claude(["--resume", "5d2e", "--chrome"]) == 0
     assert runs == [
         (["--resume", "5d2e", "--chrome"], str(home / ".claude-a")),
-        (["--continue", "--chrome"], str(home / ".claude-b")),
+        (["--resume", "abc-123", "--chrome"], str(home / ".claude-b")),
     ]

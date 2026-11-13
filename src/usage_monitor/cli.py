@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from . import __version__, accounts, config, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
@@ -215,6 +216,8 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
     """Claude Code hook (UserPromptSubmit). It never fails: a broken hook would nag on every message."""
     try:
         hook = json.loads(sys.stdin.read() or "{}") if not sys.stdin.isatty() else {}
+        if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str):
+            atomic_write_text(launch, sid)  # the launcher reopens exactly this conversation
         text = " · ".join(hook_messages(cfg))
         state_file = config.CONFIG_DIR / "notices.json"
         try:
@@ -230,11 +233,17 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
 
 
 REOPEN_DELAY = 3  # seconds to cancel (Ctrl+C) before reopening on the new account
-LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # tells the hook that /exit reopens the conversation by itself
+LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # set by the launcher: /exit reopens the conversation by itself
+
+
+def _launch_file() -> Path | None:
+    """Where the hook leaves the session id for the launcher that started it (keyed by its process id)."""
+    token = os.environ.get(LAUNCHER, "")
+    return config.CONFIG_DIR / "launches" / token if token.isdigit() else None
 
 
 def _without_resume(args: list[str]) -> list[str]:
-    """Drops -c/--continue and -r/--resume [id]: the reopened session continues the latest conversation."""
+    """Drops -c/--continue and -r/--resume [id]: the reopened session names its conversation itself."""
     out, skip = [], False
     for a in args:
         if skip and not a.startswith("-"):
@@ -257,9 +266,11 @@ def launch_claude(args: list[str]) -> int:
         print(tr("error: `claude` is not on the PATH."), file=sys.stderr)
         return 127
     pinned = bool(os.environ.get("CLAUDE_CONFIG_DIR"))  # an explicit folder is never second-guessed
+    token = str(os.getpid())
+    launch = config.CONFIG_DIR / "launches" / token
     try:
         while True:
-            env = os.environ | {LAUNCHER: "1"}
+            env = os.environ | {LAUNCHER: token}
             used = accounts.selected_dir()
             if not pinned and used:
                 env["CLAUDE_CONFIG_DIR"] = str(used)
@@ -275,9 +286,15 @@ def launch_claude(args: list[str]) -> int:
                 )
             )
             time.sleep(REOPEN_DELAY)
-            args = ["--continue", *_without_resume(args)]
+            try:  # the id the hook saw last; without it, the latest conversation in this folder
+                which = ["--resume", launch.read_text(encoding="utf-8").strip()]
+            except OSError:
+                which = ["--continue"]
+            args = [*which, *_without_resume(args)]
     except KeyboardInterrupt:
         return 130
+    finally:
+        launch.unlink(missing_ok=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
