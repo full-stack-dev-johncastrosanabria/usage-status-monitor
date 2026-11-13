@@ -74,6 +74,13 @@ ES = {
     "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
         "Cambió la cuenta: reabriendo esta conversación con {dir} en {s} s (Ctrl+C cancela)…"
     ),
+    "Premium requests": "Solicitudes premium",
+    "Chat": "Chat",
+    "Completions": "Autocompletado",
+    "Unlimited": "Ilimitado",
+    "not signed in; run `gh auth login` or sign in to Copilot in your editor": (
+        "sin sesión; ejecuta `gh auth login` o inicia sesión en Copilot en tu editor"
+    ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "sal y ejecuta `claude --continue` para seguir esta conversación con la #{n}"
     ),
@@ -221,6 +228,13 @@ ZH = {
     "type /exit and this conversation reopens on #{n} by itself": "输入 /exit，这段对话会自动用 #{n} 重新打开",
     "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
         "账户已切换：{s} 秒后用 {dir} 重新打开这段对话（Ctrl+C 取消）…"
+    ),
+    "Premium requests": "高级请求",
+    "Chat": "聊天",
+    "Completions": "代码补全",
+    "Unlimited": "无限制",
+    "not signed in; run `gh auth login` or sign in to Copilot in your editor": (
+        "未登录；请运行 `gh auth login` 或在编辑器中登录 Copilot"
     ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "请退出并运行 `claude --continue`，用 #{n} 继续这段对话"

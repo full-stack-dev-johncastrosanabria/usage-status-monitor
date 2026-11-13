@@ -11,3 +11,4 @@ build/
 *.log
 .playwright-mcp/
 .claude/
+.superpowers/
