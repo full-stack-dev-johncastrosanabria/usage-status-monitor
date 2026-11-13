@@ -13,7 +13,7 @@ from . import accounts, demo, i18n, settings
 from .config import Config
 from .i18n import tr
 from .models import AccountStatus, ClaudeAccount, Credits, ProviderError, Snapshot, Usage
-from .providers import antigravity, claude, codex, deepseek
+from .providers import antigravity, claude, codex, copilot, deepseek
 
 log = logging.getLogger(__name__)
 
@@ -50,13 +50,16 @@ def collect(cfg: Config) -> Snapshot:
         return demo.snapshot()
     accs = accounts.discover(cfg.claude_order)
     current = accounts.current_dir()
-    with ThreadPoolExecutor(max_workers=len(accs) + 3) as pool:
+    with ThreadPoolExecutor(max_workers=len(accs) + 4) as pool:
         claude_jobs = [(a, pool.submit(_safe, partial(claude.fetch, a))) for a in accs]
         codex_job = pool.submit(_safe, codex.fetch)
         ag_job = pool.submit(_safe, antigravity.fetch)
         ds_job = pool.submit(_safe, deepseek.fetch)
+        gh_job = pool.submit(_safe, copilot.fetch)
         statuses = [_status(acc, job.result(), acc.config_dir == current) for acc, job in claude_jobs]
-        return Snapshot(datetime.now(UTC), statuses, codex_job.result(), ag_job.result(), ds_job.result())
+        return Snapshot(
+            datetime.now(UTC), statuses, codex_job.result(), ag_job.result(), ds_job.result(), gh_job.result()
+        )
 
 
 def _usage_json(u: Usage | str | None) -> dict[str, Any]:
@@ -95,6 +98,7 @@ def to_json(snap: Snapshot, cfg: Config) -> dict[str, Any]:
         "codex": _usage_json(snap.codex),
         "antigravity": _usage_json(snap.antigravity),
         "deepseek": _credits_json(snap.deepseek),
+        "copilot": _usage_json(snap.copilot),
         "best": best.account.number if best else None,
         "alert_at": cfg.alert_at,
         "every": cfg.refresh_seconds,

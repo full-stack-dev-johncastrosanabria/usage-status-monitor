@@ -73,4 +73,5 @@ def print_snapshot(snap: Snapshot, only_current: bool = False) -> None:
         print(tr("Claude: no sessions; sign in with `claude`") + "\n")
     print_usage("ChatGPT / Codex", snap.codex)
     print_usage("Antigravity", snap.antigravity)
+    print_usage("GitHub Copilot", snap.copilot)
     print_credits("DeepSeek API", snap.deepseek)

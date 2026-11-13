@@ -37,7 +37,7 @@ class AlertTracker:
         watched: list[tuple[str, str, Usage, str]] = []
         if (cur := snap.current()) and cur.usage:
             watched.append((f"Claude #{cur.account.number}", cur.account.email, cur.usage, " " + tip))
-        for name, usage in (("ChatGPT", snap.codex), ("Antigravity", snap.antigravity)):
+        for name, usage in (("ChatGPT", snap.codex), ("Antigravity", snap.antigravity), ("Copilot", snap.copilot)):
             if isinstance(usage, Usage):
                 watched.append((name, usage.plan, usage, ""))
 

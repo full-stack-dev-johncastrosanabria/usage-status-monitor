@@ -105,3 +105,9 @@ def test_should_show_throttles_per_session_and_prunes() -> None:
     assert should_show(state, "s1", "another notice", now + 61)  # new text: shown straight away
     assert should_show(state, "s2", "another notice", now + 62)  # another session
     assert should_show(state, "s1", "another notice", now + 61 + REMIND_AFTER + 1)
+
+
+def test_copilot_premium_requests_alert() -> None:
+    usage = Usage("individual", (Window("Premium requests", 96.0),))
+    snap = Snapshot(datetime.now(UTC), [], copilot=usage)
+    assert [a.title for a in AlertTracker().check(snap, 95)] == ["Copilot: Premium requests at 96%"]

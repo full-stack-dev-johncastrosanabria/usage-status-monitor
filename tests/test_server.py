@@ -41,7 +41,12 @@ def api(home: Path, sent: list[Alert], monkeypatch: pytest.MonkeyPatch) -> Itera
             return AccountStatus(acc, usage, current=acc.config_dir == accounts.selected_dir())
 
         return Snapshot(
-            datetime.now(UTC), [mk(1, 97), mk(2, 40), mk(3, 10)], "not signed in", "not signed in", "no key"
+            datetime.now(UTC),
+            [mk(1, 97), mk(2, 40), mk(3, 10)],
+            "not signed in",
+            "not signed in",
+            "no key",
+            "not signed in",
         )
 
     monkeypatch.setattr(server, "collect", fake_collect)
@@ -71,6 +76,7 @@ def test_data_reports_best_account_and_settings(api: Api, sent: list[Alert]) -> 
     assert status == 200 and d["best"] == 3
     assert [c["current"] for c in d["claude"]] == [True, False, False]
     assert d["settings"]["model"] == "opus" and d["codex"] == {"error": "not signed in"}
+    assert d["copilot"] == {"error": "not signed in"}
     assert (d["lang"], d["auto_switch"]) == ("en", False)
     assert [a.title for a in sent] == ["Claude #1: Session (5h) at 97%"]
 
@@ -126,6 +132,7 @@ def test_demo_mode_never_touches_real_accounts_or_settings(home: Path, monkeypat
     assert payload["demo"] is True and [c["current"] for c in payload["claude"]] == [True, False, False, False]
     assert payload["claude"][0]["rows"][0] == payload["claude"][0]["rows"][0] | {"label": "Session (5h)", "used": 96}
     assert len(payload["antigravity"]["rows"]) == 5 and payload["deepseek"]["balances"][0]["total"] == 12.4
+    assert payload["copilot"]["rows"][0]["label"] == "Premium requests"
 
     monitor.switch(None)  # to the best one
     assert [c["n"] for c in monitor.payload()["claude"] if c["current"]] == [2]
