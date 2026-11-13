@@ -1,0 +1,12 @@
+{
+  "name": "usage-monitor",
+  "description": "Usage monitor for Claude Code and other AI coding accounts.",
+  "owner": { "name": "full-stack-dev-johncastrosanabria" },
+  "plugins": [
+    {
+      "name": "usage-monitor",
+      "source": "./plugin",
+      "description": "Available usage of your AI accounts inside Claude Code: check it, switch account, and get told when the session should move."
+    }
+  ]
+}

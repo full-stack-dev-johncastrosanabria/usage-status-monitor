@@ -1,0 +1,10 @@
+{
+  "description": "Tells the session when its account goes over the usage threshold or when another account was selected.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "usage notice", "timeout": 5 }]
+      }
+    ]
+  }
+}
