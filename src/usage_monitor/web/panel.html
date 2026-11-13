@@ -120,6 +120,29 @@
            max-width: calc(100% - 32px); padding: 10px 16px; font-size: 12px; color: #05070d; background: var(--cyan);
            box-shadow: 0 0 28px rgba(0,240,255,.5); transition: .25s; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .mini { display: none; flex: none; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; text-shadow: 0 0 12px currentColor; }
+  .mini small { font-size: 10px; font-weight: 500; margin-left: 1px; text-shadow: none; }
+
+  /* Compact: a small window keeps only the essentials, one line per account. */
+  @media (max-width: 620px) {
+    main { padding: 12px 10px 20px; }
+    header { margin-bottom: 10px; gap: 8px; align-items: center; }
+    h1 { font-size: 15px; }
+    .sub, .actions .lang, #refresh, #control, h2.full, h2 small, .row, .kv, .hint, .card > button, .chip:not(.on):not(.best) { display: none; }
+    #switchBest { padding: 6px 10px; font-size: 10px; }
+    .banner { padding: 8px 10px; margin-bottom: 10px; font-size: 11px; }
+    h2 { margin: 14px 0 6px; font-size: 10px; }
+    .grid { grid-template-columns: 1fr; gap: 6px; }
+    .card { --cut: 8px; flex-direction: row; align-items: center; gap: 10px; padding: 8px 12px; }
+    .card[data-n] { cursor: pointer; }
+    .top { flex: 1; min-width: 0; gap: 10px; }
+    .num { width: 26px; height: 26px; font-size: 12px; }
+    .meta { margin-top: 2px; }
+    .mini { display: block; }
+    .money { font-size: 20px; }
+    .money small { font-size: 10px; }
+    .err { font-size: 11px; text-align: right; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
   .lang { display: flex; gap: 4px; align-items: center; }
   .lang button { padding: 5px 9px; font-size: 11px; clip-path: none; text-transform: none; letter-spacing: 0; color: var(--muted); background: transparent; border-color: var(--line); }
@@ -145,7 +168,7 @@
 
   <div class="banner" id="banner" role="alert"></div>
 
-  <h2>Claude Code <small id="hControl"></small></h2>
+  <h2 class="full">Claude Code <small id="hControl"></small></h2>
   <div class="control" id="control"></div>
 
   <h2>Claude <small id="hAccounts"></small></h2>
@@ -325,7 +348,11 @@ const rowHtml = (r, minor) => `
     <div class="reset">${esc(countdown(r.reset))}</div>
   </div>`;
 
-const card = (inner, current) => `<div class="wrap ${current ? "current" : ""}"><article class="card ${current ? "current" : ""}">${inner}</article></div>`;
+// attrs: extra attributes for the card (in compact mode a whole account card is the switch button)
+const card = (inner, current, attrs = "") => `<div class="wrap ${current ? "current" : ""}"><article class="card ${current ? "current" : ""}" ${attrs}>${inner}</article></div>`;
+// The one number shown in compact mode: % free in the tightest window.
+const mini = (free) => `<div class="mini ${tone(free)}">${Math.round(free)}<small>%</small></div>`;
+const least = (rows) => Math.min(...rows.map((r) => r.free));
 const head = (badge, title, chips) => `<div class="top"><div class="num">${esc(badge)}</div><div class="who">
   <div class="email" title="${esc(title)}">${esc(title)}</div><div class="meta">${chips}</div></div></div>`;
 const chip = (text, cls = "") => text ? `<span class="chip ${cls}">${esc(text)}</span>` : "";
@@ -340,10 +367,10 @@ function seg(name, items, active) {
 
 function claudeCard(c) {
   const chips = chip(c.plan) + (c.current ? chip(T("inUse"), "on") : "") + (c.n === data.best ? chip(T("best"), "best") : "");
-  const body = c.error ? error(c.error) : c.rows.map((r) => rowHtml(r, !r.blocking)).join("");
+  const body = c.error ? error(c.error) : mini(c.score) + c.rows.map((r) => rowHtml(r, !r.blocking)).join("");
   const btn = c.current ? `<button type="button" disabled>${T("active")}</button>`
                         : `<button type="button" data-n="${c.n}">${T("useThis")}</button>`;
-  return card(head(c.n, c.email, chips) + body + btn, c.current);
+  return card(head(c.n, c.email, chips) + body + btn, c.current, c.current ? "" : `data-n="${c.n}"`);
 }
 
 function render() {
@@ -371,7 +398,7 @@ function render() {
   $("claude").innerHTML = data.claude.map(claudeCard).join("") || `<p class="sub">${T("noSessions")}</p>`;
 
   const cx = data.codex, ds = data.deepseek;
-  const cxCard = card(head("G", "ChatGPT / Codex", chip(cx.plan)) + (cx.error ? error(cx.error) : cx.rows.map((r) => rowHtml(r)).join("")));
+  const cxCard = card(head("G", "ChatGPT / Codex", chip(cx.plan)) + (cx.error ? error(cx.error) : mini(cx.score) + cx.rows.map((r) => rowHtml(r)).join("")));
   const dsBody = ds.error ? error(ds.error) : ds.balances.map((b) => `
       <div class="money ${ds.available ? "" : "bad"}">${b.total.toFixed(2)}<small>${esc(b.currency)}</small></div>
       <div class="kv"><span>${T("toppedUp")}</span><b>${b.topped_up.toFixed(2)}</b></div>
@@ -386,7 +413,7 @@ function render() {
     const groups = {};
     ag.rows.forEach((r) => (groups[r.group] ||= []).push(r));
     $("antigravity").innerHTML = Object.entries(groups).map(([g, rows]) =>
-      card(head(g[0], g, chip(rows.length > 1 ? T("modelCount", { n: rows.length }) : T("modelOne"))) + rows.map((r) => rowHtml(r, true)).join(""))).join("");
+      card(head(g[0], g, chip(rows.length > 1 ? T("modelCount", { n: rows.length }) : T("modelOne"))) + mini(least(rows)) + rows.map((r) => rowHtml(r, true)).join(""))).join("");
   }
 
   const sb = $("switchBest");
@@ -434,7 +461,11 @@ const modelLabel = (s) => (s.models.find((m) => m.id === s.model) || {}).label |
 
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (!b) return;
+  if (!b) {
+    const compact = matchMedia("(max-width: 620px)").matches && e.target.closest(".card[data-n]");
+    if (compact) act("/api/switch", { n: Number(compact.dataset.n) }, switched);
+    return;
+  }
   if (b.dataset.n) act("/api/switch", { n: Number(b.dataset.n) }, switched);
   else if (b.dataset.set) act("/api/settings", { [b.dataset.set]: b.dataset.value }, (d) => T("toastSettings", { model: modelLabel(d.settings), effort: d.settings.effort }));
   else if (b.dataset.lang) act("/api/prefs", { language: b.dataset.lang });
