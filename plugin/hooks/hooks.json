@@ -1,5 +1,5 @@
 {
-  "description": "Tells the session when its account goes over the usage threshold or another account was selected, and records the session id so a switch reopens this exact conversation.",
+  "description": "Tells the session when its account goes over the usage threshold or another account was selected, and tells `usage claude` which conversation runs and whether Claude is answering, so it can switch accounts between replies.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -13,6 +13,17 @@
       }
     ],
     "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "usage notice",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
       {
         "hooks": [
           {

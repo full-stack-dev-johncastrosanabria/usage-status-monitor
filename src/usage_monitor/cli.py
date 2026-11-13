@@ -12,6 +12,7 @@ import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from . import __version__, accounts, config, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
@@ -213,11 +214,15 @@ def hook_messages(cfg: Config) -> list[str]:
 
 
 def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
-    """Claude Code hook (UserPromptSubmit). It never fails: a broken hook would nag on every message."""
+    """Claude Code hook (SessionStart, UserPromptSubmit, Stop). It never fails: a broken hook would nag on every
+    message. It also tells the launcher which conversation runs and whether Claude is answering."""
     try:
         hook = json.loads(sys.stdin.read() or "{}") if not sys.stdin.isatty() else {}
+        event = hook.get("hook_event_name")
         if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str):
-            atomic_write_text(launch, sid)  # the launcher reopens exactly this conversation
+            atomic_write_text(launch, json.dumps({"session": sid, "busy": event == "UserPromptSubmit"}))
+        if event == "Stop":
+            return 0
         text = " · ".join(hook_messages(cfg))
         state_file = config.CONFIG_DIR / "notices.json"
         try:
@@ -233,13 +238,38 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
 
 
 REOPEN_DELAY = 3  # seconds to cancel (Ctrl+C) before reopening on the new account
-LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # set by the launcher: /exit reopens the conversation by itself
+POLL, EXHAUSTED_EVERY = 1.0, 10.0  # seconds between checks of the selection / of the server's usage cache
+LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # set by the launcher: lets the hook report the session to it
+# sent to Claude (not translated) when the switch cut a reply short
+CONTINUE = "Continue where you left off: the account was switched because the previous one ran out."
 
 
 def _launch_file() -> Path | None:
-    """Where the hook leaves the session id for the launcher that started it (keyed by its process id)."""
+    """Where the hook reports to the launcher that started it (keyed by its process id)."""
     token = os.environ.get(LAUNCHER, "")
     return config.CONFIG_DIR / "launches" / token if token.isdigit() else None
+
+
+def _launch_state(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _exhausted(directory: Path | None) -> bool:
+    """Is the account in `directory` at 100% of a blocking limit? Read from the local server's cache only."""
+    cfg = load_config()
+    mine = next((a for a in accounts.discover(cfg.claude_order) if a.config_dir == directory), None)
+    try:
+        payload = local_json(cfg.port, "/api/data")
+    except (OSError, ValueError):
+        return False
+    acc = next((c for c in payload.get("claude", []) if mine and c.get("n") == mine.number), None)
+    if acc is None:
+        return False
+    return any(r.get("blocking") and r.get("used", 0) >= 100 for r in acc.get("rows", []))
 
 
 def _without_resume(args: list[str]) -> list[str]:
@@ -255,28 +285,60 @@ def _without_resume(args: list[str]) -> list[str]:
     return out
 
 
+def _run(cmd: list[str], env: dict[str, str], used: Path | None, launch: Path, watch: bool) -> tuple[int, bool]:
+    """Runs Claude Code. With `watch`, stops it once another account is selected and Claude is not answering
+    (or its account is exhausted, so nothing is lost). Returns (exit code, whether a reply was cut short)."""
+    proc = subprocess.Popen(cmd, env=env)
+    checked = -EXHAUSTED_EVERY
+    while (code := proc.poll()) is None:
+        try:
+            time.sleep(POLL)
+        except KeyboardInterrupt:  # Ctrl+C belongs to Claude Code, which got it too
+            continue
+        if not watch or accounts.selected_dir() == used:
+            continue
+        busy = bool(_launch_state(launch).get("busy"))
+        if busy:
+            if time.monotonic() - checked < EXHAUSTED_EVERY:
+                continue
+            checked = time.monotonic()
+            if not _exhausted(used):
+                continue
+        proc.terminate()  # the transcript is on disk: --resume picks it up
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        return 0, busy
+    return code, False
+
+
 def launch_claude(args: list[str]) -> int:
     """`usage claude …`: runs Claude Code with the selected account (the same in any shell and system).
 
-    A running session cannot change account. If the selection changes while it runs (`usage switch`, the
-    panel or the automatic switch), leaving it with /exit reopens the same conversation on the new account.
+    A running session cannot change account, so when another account is selected (`usage switch`, the panel or
+    the automatic switch) the launcher closes Claude Code between replies and reopens the same conversation on
+    the new account. A reply cut short by an exhausted account is resumed with a "continue" prompt.
     """
     exe = shutil.which("claude")
     if exe is None:
         print(tr("error: `claude` is not on the PATH."), file=sys.stderr)
         return 127
     pinned = bool(os.environ.get("CLAUDE_CONFIG_DIR"))  # an explicit folder is never second-guessed
+    oneshot = "-p" in args or "--print" in args
     token = str(os.getpid())
     launch = config.CONFIG_DIR / "launches" / token
+    base, run_args = _without_resume(args), args
     try:
         while True:
             env = os.environ | {LAUNCHER: token}
             used = accounts.selected_dir()
             if not pinned and used:
                 env["CLAUDE_CONFIG_DIR"] = str(used)
-            code = subprocess.call([exe, *args], env=env)
+            code, cut = _run([exe, *run_args], env, used, launch, watch=not (pinned or oneshot))
             now = accounts.selected_dir()
-            if pinned or now == used or "-p" in args or "--print" in args:
+            if pinned or oneshot or now == used:
                 return code
             print(
                 tr(
@@ -286,11 +348,9 @@ def launch_claude(args: list[str]) -> int:
                 )
             )
             time.sleep(REOPEN_DELAY)
-            try:  # the id the hook saw last; without it, the latest conversation in this folder
-                which = ["--resume", launch.read_text(encoding="utf-8").strip()]
-            except OSError:
-                which = ["--continue"]
-            args = [*which, *_without_resume(args)]
+            sid = _launch_state(launch).get("session")  # without it, the latest conversation in this folder
+            which = ["--resume", sid] if isinstance(sid, str) and sid else ["--continue"]
+            run_args = [*which, *base, *([CONTINUE] if cut else [])]
     except KeyboardInterrupt:
         return 130
     finally:
