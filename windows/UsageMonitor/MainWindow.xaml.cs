@@ -121,7 +121,9 @@ partial class MainWindow : Window
         refreshing = true;
         RefreshButton.IsEnabled = false;
         RefreshButton.Content = T("refreshing");
-        await Act("/api/refresh", new { });
+        var before = Data?.Updated;
+        // the same data back means the server skipped the fetch (at most one a minute); an empty toast is not shown
+        await Act("/api/refresh", new { }, d => d.Updated == before ? T("upToDate") : "");
         refreshing = false;
         RefreshButton.IsEnabled = true;
         RefreshButton.Content = T("refresh");

@@ -573,7 +573,9 @@ class Window(Gtk.ApplicationWindow):
     def on_refresh(self, b: Gtk.Button) -> None:
         b.set_sensitive(False)
         b.set_label(self.t("refreshing"))
-        self.post("/api/refresh", {})
+        before = self.data and self.data["updated"]
+        # the same data back means the server skipped the fetch (at most one a minute)
+        self.post("/api/refresh", {}, lambda d: self.t("upToDate") if d["updated"] == before else "")
 
     def post(self, path: str, body: Payload, done: Done = None) -> None:
         self.app.request(path, body, done)
@@ -586,8 +588,8 @@ class Window(Gtk.ApplicationWindow):
         elif poll:
             self.offline = True
         self.render()
-        if data is not None and done:
-            self.show_toast(done(data))
+        if data is not None and done and (message := done(data)):
+            self.show_toast(message)
         elif error and not poll:
             self.show_toast(error)
 
