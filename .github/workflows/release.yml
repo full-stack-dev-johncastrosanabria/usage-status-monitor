@@ -45,7 +45,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: linux/package-deb.sh
+      - run: sudo apt-get install -y dpkg-dev
+      - run: scripts/build-deb.sh
       - uses: actions/upload-artifact@v4
         with: { name: linux, path: dist/linux/*.deb }
 

@@ -453,6 +453,8 @@ class Window(Gtk.ApplicationWindow):
         ag = data["antigravity"]
         self.provider_rows(table, "ChatGPT / Codex", data["codex"].get("plan") or "", data["codex"])
         self.provider_rows(table, "Antigravity", ag.get("plan") or "", ag, lambda r: f"{r['group']} · {r['label']}")
+        if gh := data.get("copilot"):  # missing from servers older than 0.2
+            self.provider_rows(table, "GitHub Copilot", gh.get("plan") or "", gh)
         self.provider_rows(table, "DeepSeek API", "", data["deepseek"])
         return table.widget
 
