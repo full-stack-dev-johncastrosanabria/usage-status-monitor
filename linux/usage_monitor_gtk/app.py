@@ -184,10 +184,26 @@ class Table:
             propagate_natural_height=True,
         )
         self.widget.add_css_class("table")
+        # A horizontal-only scroller still swallows the vertical wheel; hand it to the page instead.
+        wheel = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.BOTH_AXES)
+        wheel.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        wheel.connect("scroll", self._wheel)
+        self.widget.add_controller(wheel)
         if on_row:
             click = Gtk.GestureClick()
             click.connect("released", self._clicked, on_row)
             self.grid.add_controller(click)
+
+    def _wheel(self, controller: Gtk.EventControllerScroll, dx: float, dy: float) -> bool:
+        parent = self.widget.get_parent()
+        page = parent.get_ancestor(Gtk.ScrolledWindow) if parent else None
+        if not dy or dx or page is None:
+            return False  # sideways scrolling stays with the table
+        adj = page.get_vadjustment()
+        wheel_steps = controller.get_unit() == Gdk.ScrollUnit.WHEEL
+        step = adj.get_page_size() ** (2 / 3) if wheel_steps else 1  # GTK's own wheel step
+        adj.set_value(adj.get_value() + dy * step)
+        return True
 
     def _clicked(self, _g: Gtk.GestureClick, _n: int, x: float, y: float, on_row: Callable[[int], None]) -> None:
         widget = self.grid.pick(x, y, Gtk.PickFlags.DEFAULT)
@@ -372,7 +388,8 @@ class Window(Gtk.ApplicationWindow):
         return grid
 
     def account_name(self, c: Payload, best: int | None) -> Gtk.Widget:
-        name = label(c["email"], "name", ellipsize=3, max_width_chars=34, hexpand=True, tooltip_text=c["email"])
+        name = label(c["email"], "name", ellipsize=3, width_chars=16, max_width_chars=34, hexpand=True)
+        name.set_tooltip_text(c["email"])
         tags = hbox(spacing=6, margin_top=3)
         if c["current"]:
             tags.append(label(self.t("tagActive").upper(), "tag", "on"))
@@ -701,6 +718,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot", metavar="FILE.png", help=argparse.SUPPRESS)
     parser.add_argument("--width", type=int, default=1100, help=argparse.SUPPRESS)
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    GLib.set_prgname(APP_ID)  # X11 WM_CLASS: matches StartupWMClass in the .desktop file (else "__main__.py")
+    GLib.set_application_name("Usage Monitor")
     app = App(args)
     status = app.run([sys.argv[0]])
     return app.exit_code or status
