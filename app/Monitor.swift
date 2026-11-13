@@ -15,6 +15,8 @@ final class Monitor {
 
     @ObservationIgnored private var server: Process?
     @ObservationIgnored private var toastTask: Task<Void, Never>?
+    /// The newest alert already shown; nil until the first answer (older alerts were notified by the server).
+    @ObservationIgnored private var noticed: Int?
 
     /// `live` starts the server if needed and keeps polling; without it nothing happens until `load()`.
     init(live: Bool) {
@@ -24,6 +26,7 @@ final class Monitor {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.server?.terminate() }
         }
+        Notifier.shared.start()
         Task { await run() }
     }
 
@@ -137,6 +140,7 @@ final class Monitor {
 
     private func run() async {
         await load()
+        postNotices()
         if offline, !Backend.isExternal { startServer() }
         while !Task.isCancelled {
             // a server that was just started takes a moment to answer
@@ -144,7 +148,18 @@ final class Monitor {
             let waiting = payload?.connect?.status == "waiting"
             try? await Task.sleep(for: .seconds(payload == nil ? 1 : waiting ? 3 : 30))
             await load()
+            postNotices()
         }
+    }
+
+    private func postNotices() {
+        guard let notices = payload?.notices else { return }
+        if let seen = noticed, Backend.notifies {
+            for notice in notices where notice.id > seen {
+                Notifier.shared.post(title: notice.title, message: notice.message)
+            }
+        }
+        noticed = max(noticed ?? 0, notices.map(\.id).max() ?? 0)
     }
 
     private func startServer() {

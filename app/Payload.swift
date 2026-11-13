@@ -91,6 +91,15 @@ struct Payload: Decodable {
     let demo: Bool?
     /// How the last "connect account" went; missing from servers older than 0.2.
     let connect: Connect?
+    /// The latest alerts, oldest first; missing from servers older than 0.3.
+    let notices: [Notice]?
+
+    struct Notice: Decodable {
+        /// Milliseconds: it grows with every alert, even across server restarts.
+        let id: Int
+        let title: String
+        let message: String
+    }
 
     struct Connect: Decodable {
         /// idle, waiting, connected, duplicate, cancelled or failed

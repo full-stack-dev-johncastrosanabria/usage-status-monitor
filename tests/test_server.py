@@ -182,3 +182,16 @@ def test_connect_runs_in_the_background_and_reports(api: Api, monkeypatch: pytes
             break
         threading.Event().wait(0.05)
     assert d["connect"] == {"status": "duplicate", "email": "c1@x", "number": 1, "error": None}
+
+
+def test_alerts_go_to_the_native_app_while_it_polls(api: Api, sent: list[Alert]) -> None:
+    _, d = api("/api/data")
+    assert len(sent) == 1 and [n["title"] for n in d["notices"]] == [sent[0].title]  # #1 is at 97%
+    first = d["notices"][0]["id"]
+
+    sent.clear()
+    api("/api/data", headers={server.NATIVE_HEADER: "macos"})  # the app polls: it shows the alerts from now on
+    api("/api/prefs", {"auto_switch": True})
+    _, d = api("/api/prefs", {"language": "es"})  # fetches again: the auto switch fires an alert
+    assert sent == []
+    assert len(d["notices"]) == 2 and d["notices"][1]["id"] > first

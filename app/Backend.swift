@@ -7,6 +7,8 @@ enum Backend {
     static let isExternal = ProcessInfo.processInfo.environment["USAGE_MONITOR_PORT"] != nil
     /// Also passed to `usage server --port`, so app and server always agree.
     static let port = ProcessInfo.processInfo.environment["USAGE_MONITOR_PORT"].flatMap(Int.init) ?? 8787
+    /// The app posts the alerts itself (see `Notifier`): it tells the server, which then stops notifying.
+    nonisolated(unsafe) static var notifies = false
 
     /// The body of a `POST`; only the fields that are set are sent.
     struct Command: Encodable {
@@ -26,6 +28,7 @@ enum Backend {
     static func request(_ path: String, _ command: Command? = nil) async throws -> Payload {
         guard let url = URL(string: "http://127.0.0.1:\(port)/\(path)") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
+        if notifies { request.setValue("macos", forHTTPHeaderField: "X-Usage-Monitor-Notifier") }
         if let command {
             let encoder = JSONEncoder()
             encoder.keyEncodingStrategy = .convertToSnakeCase

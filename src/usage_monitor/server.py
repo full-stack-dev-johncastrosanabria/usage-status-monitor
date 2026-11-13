@@ -26,6 +26,8 @@ log = logging.getLogger(__name__)
 APP = "usage-monitor"
 MIN_GAP = 60  # "Refresh" does not hit the APIs more than once a minute
 HEADER = "X-Usage-Monitor"  # required on writes; see Handler.do_POST
+NATIVE_HEADER = "X-Usage-Monitor-Notifier"  # sent by an app that shows the alerts itself (the macOS app)
+NATIVE_GRACE = 90  # seconds without hearing from that app before the server notifies again (it polls every 30)
 MAX_BODY = 64 * 1024
 NEAR_MARGIN, NEAR_INTERVAL = 15, 60  # within 15 points of the threshold, fetch every minute
 
@@ -40,6 +42,10 @@ class Monitor:
         self._last = 0.0
         self._fetch_lock = threading.Lock()  # serialises fetches; reads never wait
         self.connecting: dict[str, Any] = {"status": "idle"}
+        # the latest alerts, for an app that posts them with its own icon; ids are milliseconds, so they keep
+        # growing across server restarts
+        self.notices: list[dict[str, Any]] = []
+        self.native_seen = 0.0
         self._connect_lock = threading.Lock()  # one browser sign-in at a time, even with two quick clicks
 
     def config(self) -> Config:
@@ -61,8 +67,14 @@ class Monitor:
                 fired.append(alert)
             fired += self.alerts.check(snap, cfg.alert_at)
             self._snap, self._last = snap, time.time()
+        # shortcut: an alert fired just before the app quits is never shown; widen to a delivery ack if that bites
+        native = time.time() - self.native_seen < NATIVE_GRACE
         for alert in fired:
-            notify(alert)
+            last = self.notices[-1]["id"] if self.notices else 0
+            notice = {"id": max(last + 1, time.time_ns() // 1_000_000), "title": alert.title, "message": alert.message}
+            self.notices = [*self.notices[-9:], notice]
+            if not native:
+                notify(alert)
         return snap
 
     @staticmethod
@@ -137,7 +149,7 @@ class Monitor:
 
     def payload(self) -> dict[str, Any]:
         cfg = self.config()
-        return to_json(self.snapshot(), cfg) | {"connect": self.connecting}
+        return to_json(self.snapshot(), cfg) | {"connect": self.connecting, "notices": self.notices}
 
     def next_delay(self) -> int:
         """Seconds until the next fetch: the configured interval, or a minute once the active account is near
@@ -206,6 +218,8 @@ def make_handler(monitor: Monitor) -> type[BaseHTTPRequestHandler]:
         def _get(self) -> None:
             if not self._host_ok():
                 return self._send(403, {"error": tr("host not allowed")})
+            if self.headers.get(NATIVE_HEADER):
+                monitor.native_seen = time.time()
             if self.path == "/":
                 html = resources.files("usage_monitor.web").joinpath("panel.html").read_bytes()
                 return self._send(200, html, "text/html; charset=utf-8")
