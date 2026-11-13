@@ -92,3 +92,29 @@ jobs:
           flags=""
           case "$TAG" in *-rc*) flags="--prerelease" ;; esac
           gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes $flags
+
+  cask:
+    needs: publish
+    # Pushing to another repo needs a token with contents:write on the tap; skipped for release candidates.
+    if: ${{ !contains(github.ref_name, '-rc') }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then echo "::warning::HOMEBREW_TAP_TOKEN is not set, the Homebrew cask was not updated"; exit 0; fi
+          v="${TAG#v}"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p SHA256SUMS.txt
+          arm=$(awk "/-$v-arm64.dmg/{print \$1}" SHA256SUMS.txt)
+          intel=$(awk "/-$v-x86_64.dmg/{print \$1}" SHA256SUMS.txt)
+          [ -n "$arm" ] && [ -n "$intel" ]
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/${GITHUB_REPOSITORY_OWNER}/homebrew-tap.git" tap
+          f=tap/Casks/usage-monitor.rb
+          sed -i -E "s/^(  version \")[^\"]*/\1$v/; s/(arm: +\")[0-9a-f]{64}/\1$arm/; s/(intel: \")[0-9a-f]{64}/\1$intel/" "$f"
+          cd tap
+          git diff --quiet && { echo "cask already at $v"; exit 0; }
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -am "usage-monitor $v"
+          git push
