@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  macos:
+    needs: test
+    strategy:
+      matrix:
+        runner: [macos-15, macos-13]  # arm64, x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: scripts/package-macos.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: "macos-${{ matrix.runner }}", path: dist/macos/*.dmg }
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "8.0.x" }
+      - run: sh scripts/build-standalone.sh
+        shell: bash
+      - run: windows/package.ps1
+        shell: pwsh
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: dist/windows/*.zip }
+
+  linux:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: linux/package-deb.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: dist/linux/*.deb }
+
+  publish:
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - run: cd out && sha256sum * > SHA256SUMS.txt
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          flags=""
+          case "$TAG" in *-rc*) flags="--prerelease" ;; esac
+          gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes $flags
