@@ -1,6 +1,6 @@
 [project]
 name = "usage-monitor"
-version = "0.2.2"
+version = "0.2.3"
 description = "How much is left on your AI accounts (Claude, ChatGPT/Codex, Antigravity, DeepSeek), with alerts and account switching."
 readme = "README.md"
 requires-python = ">=3.12"
