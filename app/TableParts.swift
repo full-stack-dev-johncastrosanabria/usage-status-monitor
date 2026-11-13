@@ -139,6 +139,7 @@ struct ErrorText: View {
     var body: some View {
         Text(message)
             .foregroundStyle(Theme.bad)
+            .textSelection(.enabled)  // errors carry commands to copy
             .frame(idealWidth: 240, maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }

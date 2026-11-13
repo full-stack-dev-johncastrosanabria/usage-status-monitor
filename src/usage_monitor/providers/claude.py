@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import sys
 import time
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -60,7 +61,8 @@ def credentials(account: ClaudeAccount) -> dict[str, Any] | None:
 
 def launch_command(account: ClaudeAccount) -> str:
     if account.config_dir is None:
-        return "claude"
+        # `command` skips a `claude` shell function/alias (the `usage claude` one opens the selected account)
+        return "claude" if sys.platform == "win32" else "command claude"
     return f"CLAUDE_CONFIG_DIR={str(account.config_dir).replace(str(HOME), '~')} claude"
 
 

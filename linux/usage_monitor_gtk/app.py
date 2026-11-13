@@ -443,7 +443,9 @@ class Window(Gtk.ApplicationWindow):
             return cells
         cells.append(label(c.get("plan") or "", "dim"))
         if "error" in c:
-            cells.append((label(c["error"], "err", wrap=True, max_width_chars=60), max(1, len(labels))))
+            cells.append(
+                (label(c["error"], "err", wrap=True, max_width_chars=60, selectable=True), max(1, len(labels)))
+            )
         else:
             by_label = {r["label"]: r for r in c["rows"]}
             cells += [
@@ -483,7 +485,13 @@ class Window(Gtk.ApplicationWindow):
         )
         if "error" in usage:
             table.add(
-                [*lead(True), (label(usage["error"], "err", wrap=True, max_width_chars=60), 2 if self.compact else 3)]
+                [
+                    *lead(True),
+                    (
+                        label(usage["error"], "err", wrap=True, max_width_chars=60, selectable=True),
+                        2 if self.compact else 3,
+                    ),
+                ]
             )
             return
         for i, row in enumerate(usage.get("balances") or usage["rows"]):
