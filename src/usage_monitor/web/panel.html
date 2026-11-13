@@ -4,181 +4,151 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>USAGE // MONITOR</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2305070d'/%3E%3Cpath d='M3 11V5h2v6h6V5h2v8H3z' fill='%2300f0ff'/%3E%3C/svg%3E">
+<title>usage-monitor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%230b0d0c'/%3E%3Cpath d='M3.5 4.5 7 8l-3.5 3.5M8.5 11.5h4' fill='none' stroke='%233fd07a' stroke-width='1.6'/%3E%3C/svg%3E">
 <style>
+  /* An operator console: near-monochrome, one phosphor-green accent, tabular data, thin rules.
+     Dark only: it sits next to terminals and editors, usually for hours. */
   :root {
-    --bg: #05070d; --panel: #0a0f1a; --panel-2: #0d1422; --line: #17253a; --line-hi: #24405e;
-    --ink: #d7ecff; --muted: #6f8aa8; --dim: #3d5370;
-    --cyan: #00f0ff; --magenta: #ff2bd6; --lime: #a6ff3c; --amber: #ffb627; --red: #ff3b5c;
-    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    --cut: 14px;
+    --bg: #0b0d0c; --surface: #101312; --raised: #151917;
+    --line: #1f2523; --line-strong: #2e3633;
+    --text: #c8d1cc; --dim: #8a958f;
+    --accent: #3fd07a; --accent-ink: #06130b; --accent-wash: rgba(63, 208, 122, .07);
+    --ok: #3fd07a; --warn: #d9a441; --bad: #e5534b; --bad-wash: rgba(229, 83, 75, .08);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
-  html { background: var(--bg); }
-  body {
-    margin: 0; min-height: 100vh; color: var(--ink); font: 13px/1.5 var(--mono);
-    background:
-      radial-gradient(1100px 500px at 15% -10%, rgba(0,240,255,.10), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgba(255,43,214,.08), transparent 60%),
-      linear-gradient(rgba(0,240,255,.035) 1px, transparent 1px) 0 0 / 100% 32px,
-      linear-gradient(90deg, rgba(0,240,255,.035) 1px, transparent 1px) 0 0 / 32px 100%,
-      var(--bg);
-    background-attachment: fixed;
-  }
-  body::after { /* líneas de barrido */
-    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 9;
-    background: repeating-linear-gradient(to bottom, transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
-    mix-blend-mode: multiply;
-  }
-  main { max-width: 1240px; margin: 0 auto; padding: 28px 20px 56px; }
+  html { background: var(--bg); scrollbar-color: var(--line-strong) var(--bg); }
+  body { margin: 0; color: var(--text); font: 13px/1.5 var(--mono); font-variant-numeric: tabular-nums; caret-color: var(--accent); }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+  main { max-width: 1180px; margin: 0 auto; padding: 20px 20px 48px; }
 
-  header { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
-  h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .14em; color: #fff;
-       text-shadow: 0 0 18px rgba(0,240,255,.55), 2px 0 0 rgba(255,43,214,.55), -2px 0 0 rgba(0,240,255,.55); }
-  h1 b { color: var(--magenta); font-weight: 800; }
-  .sub { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-top: 6px; }
-  .sub .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--lime);
-              box-shadow: 0 0 10px var(--lime); margin-right: 8px; animation: pulse 2s infinite; }
-  .sub.err .dot { background: var(--red); box-shadow: 0 0 10px var(--red); }
-  @keyframes pulse { 50% { opacity: .35; } }
-  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between;
+           padding-bottom: 14px; border-bottom: 1px solid var(--line-strong); }
+  h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .01em; color: #e6ece8; }
+  h1 small { margin-left: 10px; padding: 1px 6px; font-size: 10px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase;
+             color: var(--warn); border: 1px solid currentColor; }
+  .status { margin-top: 4px; color: var(--dim); font-size: 12px; }
+  .dot { display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: var(--ok); }
+  .status.down { color: var(--bad); }
+  .status.down .dot { background: var(--bad); }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .tools .opts { margin-right: 8px; }
 
-  button { font: inherit; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer;
-           color: var(--cyan); background: rgba(0,240,255,.06); border: 1px solid var(--line-hi); padding: 9px 14px;
-           clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
-           transition: background .15s, color .15s, box-shadow .15s; }
-  button:hover:not(:disabled) { background: rgba(0,240,255,.16); color: #fff; }
-  button:disabled { color: var(--dim); border-color: var(--line); background: transparent; cursor: default; }
-  button.primary { color: #05070d; background: var(--cyan); border-color: var(--cyan); font-weight: 700; }
-  button.primary:hover:not(:disabled) { background: #fff; color: #05070d; }
-  button.primary:disabled { background: transparent; color: var(--dim); border-color: var(--line); }
-  button:focus-visible, .seg button:focus-visible { outline: 2px solid var(--magenta); outline-offset: 2px; }
+  button { font: inherit; font-size: 12px; color: var(--text); background: transparent; border: 1px solid var(--line-strong);
+           border-radius: 2px; padding: 5px 12px; cursor: pointer; transition: background-color .15s, color .15s, border-color .15s; }
+  button:hover:not(:disabled) { border-color: var(--dim); background: var(--raised); }
+  button:active:not(:disabled) { background: var(--line); }
+  button:disabled { color: var(--dim); border-color: var(--line); cursor: default; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { color: var(--accent); border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { color: var(--accent-ink); background: var(--accent); }
+  button.primary:disabled { color: var(--dim); border-color: var(--line); }
 
-  .banner { display: none; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
-            padding: 14px 16px; margin-bottom: 20px; border: 1px solid var(--red);
-            background: linear-gradient(90deg, rgba(255,59,92,.18), rgba(255,59,92,.04));
-            box-shadow: 0 0 24px rgba(255,59,92,.25), inset 0 0 24px rgba(255,59,92,.08); }
-  .banner.show { display: flex; }
-  .banner strong { color: var(--red); letter-spacing: .06em; }
+  /* A row of words; the chosen one is marked. Used for model, effort, auto-switch and language. */
+  .opts { display: flex; flex-wrap: wrap; gap: 4px; }
+  .opts button { padding: 3px 9px; color: var(--dim); border-color: transparent; }
+  .opts button:hover:not(:disabled) { color: var(--text); border-color: var(--line-strong); background: transparent; }
+  .opts button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
 
-  h2 { display: flex; align-items: center; gap: 12px; margin: 30px 0 12px; font-size: 11px; font-weight: 600;
-       letter-spacing: .22em; text-transform: uppercase; color: var(--cyan); }
-  h2::before { content: "//"; color: var(--magenta); }
-  h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-hi), transparent); }
-  h2 small { color: var(--muted); letter-spacing: .08em; font-size: 10px; text-transform: none; }
+  .alert { display: none; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+           margin-top: 16px; padding: 10px 14px; border: 1px solid var(--bad); background: var(--bad-wash); }
+  .alert.show { display: flex; }
+  .alert strong { font-weight: 600; color: var(--bad); }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 14px; }
-  .card { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 16px;
-          background: linear-gradient(160deg, var(--panel-2), var(--panel)); border: 1px solid var(--line);
-          clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); }
-  .card::before { content: ""; position: absolute; top: 0; left: 0; width: 34px; height: 2px; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
-  .card.current { border-color: var(--cyan); background: linear-gradient(160deg, rgba(0,240,255,.10), var(--panel)); }
-  .card.current::before { width: 100%; }
-  .wrap { filter: drop-shadow(0 0 0 transparent); }
-  .wrap.current { filter: drop-shadow(0 0 14px rgba(0,240,255,.35)); }
+  h2 { margin: 30px 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  h2 small { margin-left: 10px; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 
-  .top { display: flex; gap: 12px; align-items: center; }
-  .num { flex: none; width: 34px; height: 34px; display: grid; place-items: center; font-weight: 800; font-size: 15px;
-         color: var(--cyan); border: 1px solid var(--line-hi); background: rgba(0,240,255,.05);
-         clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
-  .card.current .num { color: #05070d; background: var(--cyan); border-color: var(--cyan); }
-  .who { min-width: 0; flex: 1; }
-  .email { font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-  .chip { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; padding: 1px 7px; color: var(--muted); border: 1px solid var(--line-hi); }
-  .chip.on { color: #05070d; background: var(--cyan); border-color: var(--cyan); font-weight: 700; }
-  .chip.best { color: var(--lime); border-color: var(--lime); box-shadow: 0 0 10px rgba(166,255,60,.3); }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 14px; text-align: left; vertical-align: top; white-space: nowrap; }
+  th { padding-top: 7px; padding-bottom: 7px; font-size: 11px; font-weight: 400; letter-spacing: .08em; text-transform: uppercase;
+       color: var(--dim); border-bottom: 1px solid var(--line-strong); }
+  tbody tr + tr td { border-top: 1px solid var(--line); }
+  tbody tr.sub td { border-top-color: transparent; padding-top: 0; }
+  tr.current td { background: var(--accent-wash); }
+  td.num, th.num { width: 1%; padding-right: 4px; color: var(--dim); }
+  tr.current td.num { color: var(--accent); font-weight: 600; }
+  td.who { max-width: 300px; }
+  .name { display: block; overflow: hidden; text-overflow: ellipsis; color: #e6ece8; }
+  .note { margin-left: 10px; color: var(--dim); font-size: 12px; }
+  .tag { display: inline-block; margin: 3px 6px 0 0; padding: 0 6px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+         color: var(--dim); border: 1px solid var(--line-strong); }
+  .tag.on { color: var(--accent); border-color: var(--accent); }
+  td.plan { color: var(--dim); }
+  td.act, th.act { width: 1%; text-align: right; }
+  tr.group td { padding-bottom: 0; }
+  tr.group + tr td { border-top-color: transparent; }
 
-  .row .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-  .row .label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .pct { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; text-shadow: 0 0 14px currentColor; }
-  .row .pct small { font-size: 10px; font-weight: 500; color: var(--muted); margin-left: 3px; text-shadow: none; letter-spacing: .08em; }
-  .bar { height: 9px; margin: 7px 0 5px; background: rgba(255,255,255,.05);
-         -webkit-mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px); mask: repeating-linear-gradient(90deg, #000 0 6px, transparent 6px 8px); }
-  .bar i { display: block; height: 100%; background: currentColor; box-shadow: 0 0 12px currentColor; transition: width .6s cubic-bezier(.2,.8,.2,1); }
-  .reset { font-size: 10px; color: var(--dim); letter-spacing: .04em; }
-  .row.minor .pct { font-size: 15px; }
-  .row.minor .bar { height: 5px; }
-  .ok { color: var(--lime); } .warn { color: var(--amber); } .bad { color: var(--red); }
-  .err { color: var(--red); font-size: 12px; }
-  .card > button { margin-top: auto; width: 100%; }
+  .meter { display: flex; align-items: center; gap: 10px; }
+  .pct { min-width: 4ch; text-align: right; font-weight: 600; }
+  .bar { flex: none; width: 84px; height: 6px; background: var(--line);
+         -webkit-mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 8.4px); mask: repeating-linear-gradient(90deg, #000 0 7px, transparent 7px 8.4px); }
+  .bar i { display: block; height: 100%; background: currentColor; transition: width .2s ease-out; }
+  .when { margin-top: 2px; padding-left: calc(4ch + 10px); color: var(--dim); font-size: 12px; }
+  .ok .pct, .ok .bar { color: var(--ok); } .warn .pct, .warn .bar { color: var(--warn); } .bad .pct, .bad .bar { color: var(--bad); }
+  .money { display: block; font-weight: 600; color: var(--ok); }
+  .money.bad { color: var(--bad); }
+  .err { color: var(--bad); white-space: normal; }
+  .empty { padding: 14px; color: var(--dim); }
 
-  .money { font-size: 40px; font-weight: 800; line-height: 1; color: var(--lime); text-shadow: 0 0 18px rgba(166,255,60,.5); font-variant-numeric: tabular-nums; }
-  .money small { font-size: 12px; color: var(--muted); margin-left: 6px; text-shadow: none; letter-spacing: .1em; }
-  .kv { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
-  .kv b { color: var(--ink); font-weight: 500; }
+  dl { margin: 0; border: 1px solid var(--line); background: var(--surface); }
+  dl > div { display: grid; grid-template-columns: 130px 1fr; gap: 4px 14px; align-items: baseline; padding: 8px 14px; }
+  dl > div + div { border-top: 1px solid var(--line); }
+  dt { color: var(--dim); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; }
+  .hint { color: var(--dim); font-size: 12px; }
 
-  .control { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
-  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-  .seg button { padding: 6px 11px; font-size: 11px; clip-path: none; text-transform: none; letter-spacing: .04em; color: var(--muted); background: transparent; border-color: var(--line-hi); }
-  .seg button:hover:not(:disabled) { color: #fff; border-color: var(--cyan); background: rgba(0,240,255,.08); }
-  .seg button[aria-pressed="true"] { color: #05070d; background: var(--magenta); border-color: var(--magenta); font-weight: 700; box-shadow: 0 0 16px rgba(255,43,214,.5); }
-  .hint { font-size: 10px; color: var(--dim); letter-spacing: .04em; }
-
-  .toast { position: fixed; left: 50%; bottom: 24px; z-index: 10; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
-           max-width: calc(100% - 32px); padding: 10px 16px; font-size: 12px; color: #05070d; background: var(--cyan);
-           box-shadow: 0 0 28px rgba(0,240,255,.5); transition: .25s; }
+  .toast { position: fixed; left: 50%; bottom: 20px; max-width: calc(100% - 32px); padding: 8px 14px; font-size: 12px;
+           color: var(--text); background: var(--raised); border: 1px solid var(--line-strong);
+           transform: translate(-50%, 8px); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s ease-out; }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
-  .mini { display: none; flex: none; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; text-shadow: 0 0 12px currentColor; }
-  .mini small { font-size: 10px; font-weight: 500; margin-left: 1px; text-shadow: none; }
 
-  /* Compact: a small window keeps only the essentials, one line per account. */
+  /* Compact: a small window keeps one line per account, with its tightest limit. */
   @media (max-width: 620px) {
-    main { padding: 12px 10px 20px; }
-    header { margin-bottom: 10px; gap: 8px; align-items: center; }
-    h1 { font-size: 15px; }
-    .sub, .actions .lang, #refresh, #control, h2.full, h2 small, .row, .kv, .hint, .card > button, .chip:not(.on):not(.best) { display: none; }
-    #switchBest { padding: 6px 10px; font-size: 10px; }
-    .banner { padding: 8px 10px; margin-bottom: 10px; font-size: 11px; }
-    h2 { margin: 14px 0 6px; font-size: 10px; }
-    .grid { grid-template-columns: 1fr; gap: 6px; }
-    .card { --cut: 8px; flex-direction: row; align-items: center; gap: 10px; padding: 8px 12px; }
-    .card[data-n] { cursor: pointer; }
-    .top { flex: 1; min-width: 0; gap: 10px; }
-    .num { width: 26px; height: 26px; font-size: 12px; }
-    .meta { margin-top: 2px; }
-    .mini { display: block; }
-    .money { font-size: 20px; }
-    .money small { font-size: 10px; }
-    .err { font-size: 11px; text-align: right; }
+    main { padding: 12px 12px 24px; }
+    header { padding-bottom: 10px; gap: 8px; }
+    .status, .tools .opts, #refresh, #defaults, h2 small, .when, .tag:not(.on), .note { display: none; }
+    table { table-layout: fixed; }
+    th.num, td.num { width: 30px; }
+    th.free, td.free { width: 112px; }
+    h2 { margin: 18px 0 6px; }
+    th, td { padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; }
+    td.who { max-width: none; }
+    .bar { width: 44px; }
+    .meter { justify-content: flex-end; }
+    tr[data-n] { cursor: pointer; }
+    tr[data-n]:hover td { background: var(--raised); }
   }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
-  .lang { display: flex; gap: 4px; align-items: center; }
-  .lang button { padding: 5px 9px; font-size: 11px; clip-path: none; text-transform: none; letter-spacing: 0; color: var(--muted); background: transparent; border-color: var(--line); }
-  .lang button[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); background: rgba(0,240,255,.08); }
-  .switch { display: flex; align-items: center; gap: 12px; }
-  .switch button { min-width: 74px; }
-  .switch button[aria-pressed="true"] { color: #05070d; background: var(--lime); border-color: var(--lime); font-weight: 700; box-shadow: 0 0 16px rgba(166,255,60,.45); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <main>
   <header>
     <div>
-      <h1>USAGE<b>//</b>MONITOR</h1>
-      <div class="sub" id="sub"><span class="dot"></span>…</div>
+      <h1>usage-monitor<small id="demo" hidden></small></h1>
+      <div class="status" id="status"><span class="dot"></span>…</div>
     </div>
-    <div class="actions">
-      <div class="lang" id="lang" role="group" aria-label="Language"></div>
+    <div class="tools">
+      <div class="opts" id="lang" role="group" aria-label="Language"></div>
       <button id="refresh" type="button"></button>
       <button id="switchBest" class="primary" type="button" disabled></button>
     </div>
   </header>
 
-  <div class="banner" id="banner" role="alert"></div>
+  <div class="alert" id="alert" role="alert"></div>
 
-  <h2 class="full">Claude Code <small id="hControl"></small></h2>
-  <div class="control" id="control"></div>
+  <h2><span id="hAccounts"></span><small id="hAccountsHint"></small></h2>
+  <div class="scroll" id="accounts"></div>
 
-  <h2>Claude <small id="hAccounts"></small></h2>
-  <div class="grid" id="claude"></div>
+  <h2 id="hProviders"></h2>
+  <div class="scroll" id="providers"></div>
 
-  <h2>ChatGPT / Codex · DeepSeek</h2>
-  <div class="grid" id="others"></div>
-
-  <h2>Antigravity <small id="agPlan"></small></h2>
-  <div class="grid" id="antigravity"></div>
+  <section id="defaults">
+    <h2><span id="hDefaults"></span><small id="hDefaultsHint"></small></h2>
+    <dl id="settings"></dl>
+  </section>
 </main>
 <div class="toast" id="toast" role="status"></div>
 
@@ -186,136 +156,157 @@
 // Interface text. Labels and errors that come from the server arrive already translated.
 const I18N = {
   en: {
-    refresh: "↻ Refresh",
+    refresh: "Refresh",
     refreshing: "Refreshing…",
-    switchBest: "Switch to the best · #{n} ({p}%)",
-    noBest: "No other account has room",
-    controlHint: "defaults for new sessions",
+    switchBest: "Switch to #{n} · {p}% free",
+    noBest: "No account with room",
+    online: "online",
+    offline: "offline: no connection to the local server",
+    status: "updated {ago} · checks every {m} min · alerts at {p}%",
+    justNow: "just now",
+    minAgo: "{m} min ago",
+    demo: "demo data",
+    secAccounts: "Claude accounts",
+    freeHint: "% free in each limit",
+    secProviders: "Other providers",
+    secDefaults: "Claude Code defaults",
+    defaultsHint: "apply to new sessions",
+    colAccount: "Account",
+    colPlan: "Plan",
+    colFree: "Free",
+    colResets: "Resets",
+    colSource: "Source",
+    colLimit: "Limit",
+    tagActive: "active",
+    tagBest: "most room",
+    use: "Use",
     model: "Model",
     moreModels: "More models",
     effort: "Effort",
-    effortHint: "Open sessions keep theirs (use /model inside them).",
-    autoSwitch: "Automatic switch",
-    on: "On",
-    off: "Off",
-    autoHint: "When the active account reaches {p}%, new sessions move to the account with the most room.",
-    accounts: "accounts",
-    inUse: "In use",
-    best: "Best option",
-    active: "Active account",
-    useThis: "Use this account",
-    free: "% free",
+    effortHint: "Open sessions keep their own; use /model inside them.",
+    autoSwitch: "Auto-switch",
+    on: "on",
+    off: "off",
+    autoHint: "At {p}% used, new sessions move to the account with the most room.",
     freeAria: "{p}% free",
-    resets: "resets in {left} · {when}",
-    credits: "Credits",
-    noBalance: "No balance",
-    toppedUp: "Topped up",
-    granted: "Granted",
-    modelCount: "{n} models",
-    modelOne: "1 model",
-    bannerHead: "⚠ ACCOUNT #{n} AT {p}%",
-    bannerIn: "in {label}.",
-    bannerBest: "#{n} has {p}% free.",
-    bannerNone: "No other account has room right now.",
-    bannerButton: "Switch to #{n}",
-    status: "Online · updated {ago} · checks every {m} min · alert at {p}%",
-    justNow: "just now",
-    minAgo: "{m} min ago",
-    offline: "No connection to the local server",
+    resetsIn: "in {left} · {when}",
+    balance: "Balance",
+    toppedUp: "topped up {v}",
+    granted: "granted {v}",
+    noBalance: "no balance",
+    failed: "error",
+    alertHead: "Account #{n} is at {p}% of {label}.",
+    alertBest: "#{n} has {p}% free.",
+    alertNone: "No other account has room right now.",
+    alertButton: "Switch to #{n}",
     toastSwitch: "Active account: #{n} {email}. New claude sessions will use it.",
     toastSettings: "Claude Code: {model} · effort {effort}",
-    toastAuto: "Automatic switch: {state}",
-    noSessions: "No Claude sessions.",
+    toastAuto: "Auto-switch: {state}",
+    noSessions: "No Claude sessions. Sign in with `claude` and they will show up here.",
     d: "d",
     h: "h",
     min: "min",
   },
   es: {
-    refresh: "↻ Actualizar",
+    refresh: "Actualizar",
     refreshing: "Actualizando…",
-    switchBest: "Cambiar a la mejor · #{n} ({p} %)",
-    noBest: "Sin otra cuenta con margen",
-    controlHint: "valores por defecto de las sesiones nuevas",
+    switchBest: "Cambiar a #{n} · {p} % libre",
+    noBest: "Sin cuenta con margen",
+    online: "en línea",
+    offline: "sin conexión con el servidor local",
+    status: "actualizado {ago} · consulta cada {m} min · avisa al {p} %",
+    justNow: "hace un momento",
+    minAgo: "hace {m} min",
+    demo: "datos de ejemplo",
+    secAccounts: "Cuentas de Claude",
+    freeHint: "% libre en cada límite",
+    secProviders: "Otros proveedores",
+    secDefaults: "Valores por defecto de Claude Code",
+    defaultsHint: "se aplican a las sesiones nuevas",
+    colAccount: "Cuenta",
+    colPlan: "Plan",
+    colFree: "Libre",
+    colResets: "Se reinicia",
+    colSource: "Origen",
+    colLimit: "Límite",
+    tagActive: "activa",
+    tagBest: "más margen",
+    use: "Usar",
     model: "Modelo",
     moreModels: "Más modelos",
     effort: "Esfuerzo",
-    effortHint: "Las sesiones abiertas conservan el suyo (usa /model dentro de ellas).",
+    effortHint: "Las sesiones abiertas conservan el suyo; usa /model dentro de ellas.",
     autoSwitch: "Cambio automático",
-    on: "Sí",
-    off: "No",
-    autoHint: "Cuando la cuenta activa llega al {p} %, las sesiones nuevas pasan a la cuenta con más margen.",
-    accounts: "cuentas",
-    inUse: "En uso",
-    best: "Mejor opción",
-    active: "Cuenta activa",
-    useThis: "Usar esta cuenta",
-    free: "% libre",
+    on: "sí",
+    off: "no",
+    autoHint: "Al {p} % de uso, las sesiones nuevas pasan a la cuenta con más margen.",
     freeAria: "{p} % libre",
-    resets: "se reinicia en {left} · {when}",
-    credits: "Créditos",
-    noBalance: "Sin saldo",
-    toppedUp: "Recargado",
-    granted: "Regalado",
-    modelCount: "{n} modelos",
-    modelOne: "1 modelo",
-    bannerHead: "⚠ CUENTA #{n} AL {p} %",
-    bannerIn: "en {label}.",
-    bannerBest: "La #{n} tiene {p} % libre.",
-    bannerNone: "Ninguna otra cuenta tiene margen ahora.",
-    bannerButton: "Cambiar a #{n}",
-    status: "En línea · actualizado {ago} · consulta cada {m} min · aviso al {p} %",
-    justNow: "hace un momento",
-    minAgo: "hace {m} min",
-    offline: "Sin conexión con el servidor local",
+    resetsIn: "en {left} · {when}",
+    balance: "Saldo",
+    toppedUp: "recargado {v}",
+    granted: "regalado {v}",
+    noBalance: "sin saldo",
+    failed: "error",
+    alertHead: "La cuenta #{n} está al {p} % de {label}.",
+    alertBest: "La #{n} tiene {p} % libre.",
+    alertNone: "Ninguna otra cuenta tiene margen ahora.",
+    alertButton: "Cambiar a #{n}",
     toastSwitch: "Cuenta activa: #{n} {email}. Las sesiones nuevas de claude la usarán.",
     toastSettings: "Claude Code: {model} · esfuerzo {effort}",
     toastAuto: "Cambio automático: {state}",
-    noSessions: "No hay sesiones de Claude.",
+    noSessions: "No hay sesiones de Claude. Inicia sesión con `claude` y aparecerán aquí.",
     d: "d",
     h: "h",
     min: "min",
   },
   zh: {
-    refresh: "↻ 刷新",
+    refresh: "刷新",
     refreshing: "正在刷新…",
-    switchBest: "切换到最佳账号 · #{n}（{p}%）",
-    noBest: "其他账号都没有余量",
-    controlHint: "新会话的默认设置",
+    switchBest: "切换到 #{n} · 剩余 {p}%",
+    noBest: "没有可用余量的账号",
+    online: "在线",
+    offline: "离线：无法连接本地服务器",
+    status: "{ago}更新 · 每 {m} 分钟查询 · {p}% 时提醒",
+    justNow: "刚刚",
+    minAgo: "{m} 分钟前",
+    demo: "示例数据",
+    secAccounts: "Claude 账号",
+    freeHint: "各项额度的剩余百分比",
+    secProviders: "其他服务",
+    secDefaults: "Claude Code 默认设置",
+    defaultsHint: "对新会话生效",
+    colAccount: "账号",
+    colPlan: "套餐",
+    colFree: "剩余",
+    colResets: "重置时间",
+    colSource: "来源",
+    colLimit: "额度",
+    tagActive: "当前",
+    tagBest: "余量最多",
+    use: "使用",
     model: "模型",
     moreModels: "更多模型",
     effort: "强度",
-    effortHint: "已打开的会话保持原设置（可在会话内使用 /model）。",
+    effortHint: "已打开的会话保持原设置；可在会话内使用 /model。",
     autoSwitch: "自动切换",
     on: "开",
     off: "关",
-    autoHint: "当前账号用量达到 {p}% 时，新会话将改用余量最多的账号。",
-    accounts: "账号",
-    inUse: "使用中",
-    best: "最佳选择",
-    active: "当前账号",
-    useThis: "使用此账号",
-    free: "% 剩余",
+    autoHint: "用量达到 {p}% 时，新会话将改用余量最多的账号。",
     freeAria: "剩余 {p}%",
-    resets: "{left} 后重置 · {when}",
-    credits: "余额",
+    resetsIn: "{left}后 · {when}",
+    balance: "余额",
+    toppedUp: "充值 {v}",
+    granted: "赠送 {v}",
     noBalance: "余额不足",
-    toppedUp: "充值",
-    granted: "赠送",
-    modelCount: "{n} 个模型",
-    modelOne: "1 个模型",
-    bannerHead: "⚠ 账号 #{n} 已用 {p}%",
-    bannerIn: "（{label}）。",
-    bannerBest: "#{n} 还剩 {p}%。",
-    bannerNone: "目前其他账号都没有余量。",
-    bannerButton: "切换到 #{n}",
-    status: "在线 · {ago}更新 · 每 {m} 分钟查询 · {p}% 时提醒",
-    justNow: "刚刚",
-    minAgo: "{m} 分钟前",
-    offline: "无法连接本地服务器",
+    failed: "错误",
+    alertHead: "账号 #{n} 的{label}已用 {p}%。",
+    alertBest: "#{n} 还剩 {p}%。",
+    alertNone: "目前其他账号都没有余量。",
+    alertButton: "切换到 #{n}",
     toastSwitch: "当前账号：#{n} {email}。新的 claude 会话将使用它。",
     toastSettings: "Claude Code：{model} · 强度 {effort}",
     toastAuto: "自动切换：{state}",
-    noSessions: "没有 Claude 会话。",
+    noSessions: "没有 Claude 会话。用 `claude` 登录后会显示在这里。",
     d: "天",
     h: "小时",
     min: "分钟",
@@ -324,53 +315,85 @@ const I18N = {
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const HEADERS = { "Content-Type": "application/json", "X-Usage-Monitor": "1" };
 let data = null;
 let lang = "en";
+const compact = matchMedia("(max-width: 620px)");  // a small window shows one line per account
 
 const T = (key, vars = {}) => (I18N[lang][key] ?? I18N.en[key]).replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 const tone = (free) => free > 50 ? "ok" : free > 20 ? "warn" : "bad";
-const HEADERS = { "Content-Type": "application/json", "X-Usage-Monitor": "1" };
 
 function countdown(iso) {
   if (!iso) return "";
   const d = new Date(iso), s = Math.max(0, (d - Date.now()) / 1000);
   const days = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
-  const left = days ? `${days} ${T("d")} ${h} ${T("h")}` : h ? `${h} ${T("h")} ${m} ${T("min")}` : `${m} ${T("min")}`;
-  const when = d.toLocaleString(lang === "zh" ? "zh-CN" : lang, { weekday: "short", hour: "2-digit", minute: "2-digit" });
-  return T("resets", { left, when });
+  const left = days ? `${days}${T("d")} ${h}${T("h")}` : h ? `${h}${T("h")} ${m}${T("min")}` : `${m}${T("min")}`;
+  const when = d.toLocaleString(lang === "zh" ? "zh-CN" : lang, { weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+  return T("resetsIn", { left, when });
 }
 
-const rowHtml = (r, minor) => `
-  <div class="row ${minor ? "minor" : ""} ${tone(r.free)}">
-    <div class="head"><span class="label" title="${esc(r.label)}">${esc(r.label)}</span>
-      <span class="pct">${Math.round(r.free)}<small>${T("free")}</small></span></div>
-    <div class="bar" role="img" aria-label="${T("freeAria", { p: Math.round(r.free) })}"><i style="width:${r.free}%"></i></div>
-    <div class="reset">${esc(countdown(r.reset))}</div>
-  </div>`;
+const meter = (free) => `<div class="meter"><span class="pct">${Math.round(free)}%</span>
+  <span class="bar" role="img" aria-label="${T("freeAria", { p: Math.round(free) })}"><i style="width:${free}%"></i></span></div>`;
+const cell = (r, cls) => r ? `<td class="${cls} ${tone(r.free)}">${meter(r.free)}<div class="when">${esc(countdown(r.reset))}</div></td>` : `<td class="${cls}"></td>`;
+const tag = (text, on) => `<span class="tag ${on ? "on" : ""}">${esc(text)}</span>`;
 
-// attrs: extra attributes for the card (in compact mode a whole account card is the switch button)
-const card = (inner, current, attrs = "") => `<div class="wrap ${current ? "current" : ""}"><article class="card ${current ? "current" : ""}" ${attrs}>${inner}</article></div>`;
-// The one number shown in compact mode: % free in the tightest window.
-const mini = (free) => `<div class="mini ${tone(free)}">${Math.round(free)}<small>%</small></div>`;
-const least = (rows) => Math.min(...rows.map((r) => r.free));
-const head = (badge, title, chips) => `<div class="top"><div class="num">${esc(badge)}</div><div class="who">
-  <div class="email" title="${esc(title)}">${esc(title)}</div><div class="meta">${chips}</div></div></div>`;
-const chip = (text, cls = "") => text ? `<span class="chip ${cls}">${esc(text)}</span>` : "";
-const error = (text) => `<div class="err">${esc(text)}</div>`;
-const caption = (text) => `<div class="row"><span class="label">${esc(text)}</span></div>`;
+function accountsTable() {
+  if (!data.claude.length) return `<div class="empty">${esc(T("noSessions"))}</div>`;
+  const labels = [];
+  data.claude.forEach((c) => (c.rows || []).forEach((r) => labels.includes(r.label) || labels.push(r.label)));
+  const head = `<tr><th class="num">#</th><th>${T("colAccount")}</th>` + (compact.matches ? `<th class="free">${T("colFree")}</th>`
+    : `<th class="plan">${T("colPlan")}</th>` + labels.map((l) => `<th>${esc(l)}</th>`).join("") + `<th class="act"></th>`) + `</tr>`;
+  const rows = data.claude.map((c) => {
+    const tags = (c.current ? tag(T("tagActive"), true) : "") + (c.n === data.best ? tag(T("tagBest")) : "");
+    const wins = c.error ? `<td class="err" colspan="${labels.length || 1}">${esc(c.error)}</td>`
+                         : labels.map((l) => cell(c.rows.find((r) => r.label === l), "")).join("");
+    const score = c.error ? `<td class="free err">${T("failed")}</td>` : `<td class="free ${tone(c.score)}">${meter(c.score)}</td>`;
+    const act = c.current ? "" : `<button type="button" data-n="${c.n}">${T("use")}</button>`;
+    const rest = compact.matches ? score : `<td class="plan">${esc(c.plan || "")}</td>${wins}<td class="act">${act}</td>`;
+    return `<tr class="${c.current ? "current" : ""}" ${c.current ? "" : `data-n="${c.n}"`}>
+      <td class="num">${c.n}</td>
+      <td class="who"><span class="name" title="${esc(c.email)}">${esc(c.email)}</span>${tags}</td>
+      ${rest}</tr>`;
+  }).join("");
+  return `<table><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+}
+
+// One row per limit. Full width: the source is a column, named once. Compact: the source is a group row.
+function providerRows(source, note, usage, labelOf = (r) => r.label) {
+  const name = `<span class="name" title="${esc(note)}">${esc(source)}<span class="note">${esc(note)}</span></span>`;
+  const lead = (first) => compact.matches ? "" : `<td class="who">${first ? name : ""}</td>`;
+  const group = compact.matches ? `<tr class="group"><td colspan="2">${name}</td></tr>` : "";
+  if (usage.error) return group + `<tr>${lead(true)}<td class="err" colspan="${compact.matches ? 2 : 3}">${esc(usage.error)}</td></tr>`;
+  if (usage.balances) return group + usage.balances.map((b, i) => `<tr class="${i ? "sub" : ""}">${lead(!i)}<td>${T("balance")}</td>
+    <td class="free"><span class="money ${usage.available ? "" : "bad"}">${b.total.toFixed(2)} ${esc(b.currency)}</span></td>` + (compact.matches ? "" :
+    `<td>${esc(usage.available ? `${T("toppedUp", { v: b.topped_up.toFixed(2) })} · ${T("granted", { v: b.granted.toFixed(2) })}` : T("noBalance"))}</td>`) + `</tr>`).join("");
+  return group + usage.rows.map((r, i) => `<tr class="${i ? "sub" : ""}">${lead(!i)}<td>${esc(labelOf(r))}</td>
+    <td class="free ${tone(r.free)}">${meter(r.free)}</td>` + (compact.matches ? "" : `<td>${esc(countdown(r.reset))}</td>`) + `</tr>`).join("");
+}
+
+function providersTable() {
+  const head = compact.matches ? `<th>${T("colLimit")}</th><th class="free">${T("colFree")}</th>`
+    : `<th>${T("colSource")}</th><th>${T("colLimit")}</th><th>${T("colFree")}</th><th>${T("colResets")}</th>`;
+  return `<table><thead><tr>${head}</tr></thead><tbody>` +
+    providerRows("ChatGPT / Codex", data.codex.plan || "", data.codex) +
+    providerRows("Antigravity", data.antigravity.plan || "", data.antigravity, (r) => `${r.group} · ${r.label}`) +
+    providerRows("DeepSeek API", "", data.deepseek) + `</tbody></table>`;
+}
 
 // items: [{id, label}]
-function seg(name, items, active) {
-  return `<div class="seg" role="group" aria-label="${esc(name)}">` + items.map((m) =>
-    `<button type="button" data-set="${name}" data-value="${esc(m.id)}" aria-pressed="${m.id === active}">${esc(m.label)}</button>`).join("") + `</div>`;
-}
+const options = (name, items, active) => `<div class="opts" role="group" aria-label="${esc(name)}">` + items.map((m) =>
+  `<button type="button" data-set="${name}" data-value="${esc(m.id)}" aria-pressed="${m.id === active}">${esc(m.label)}</button>`).join("") + `</div>`;
+const line = (term, body) => `<div><dt>${esc(term)}</dt><dd>${body}</dd></div>`;
 
-function claudeCard(c) {
-  const chips = chip(c.plan) + (c.current ? chip(T("inUse"), "on") : "") + (c.n === data.best ? chip(T("best"), "best") : "");
-  const body = c.error ? error(c.error) : mini(c.score) + c.rows.map((r) => rowHtml(r, !r.blocking)).join("");
-  const btn = c.current ? `<button type="button" disabled>${T("active")}</button>`
-                        : `<button type="button" data-n="${c.n}">${T("useThis")}</button>`;
-  return card(head(c.n, c.email, chips) + body + btn, c.current, c.current ? "" : `data-n="${c.n}"`);
+function settingsList() {
+  const s = data.settings || {};
+  const auto = line(T("autoSwitch"), `<div class="opts" role="group" aria-label="${esc(T("autoSwitch"))}">` +
+    [true, false].map((v) => `<button type="button" data-auto="${v}" aria-pressed="${v === data.auto_switch}">${T(v ? "on" : "off")}</button>`).join("") +
+    `</div><span class="hint">${esc(T("autoHint", { p: data.alert_at }))}</span>`);
+  if (s.error) return line(T("model"), `<span class="err">${esc(s.error)}</span>`) + auto;
+  return line(T("model"), options("model", s.models.filter((m) => !m.more), s.model)) +
+    line(T("moreModels"), options("model", s.models.filter((m) => m.more), s.model)) +
+    line(T("effort"), options("effort", s.efforts.map((e) => ({ id: e, label: e })), s.effort) + `<span class="hint">${esc(T("effortHint"))}</span>`) + auto;
 }
 
 function render() {
@@ -379,59 +402,34 @@ function render() {
   const best = data.claude.find((c) => c.n === data.best);
   const cur = data.claude.find((c) => c.current);
 
+  $("demo").hidden = !data.demo;
+  $("demo").textContent = T("demo");
   $("lang").innerHTML = Object.entries(data.languages).map(([code, name]) =>
     `<button type="button" data-lang="${code}" aria-pressed="${code === lang}">${esc(name)}</button>`).join("");
   $("refresh").textContent = T("refresh");
-  $("hControl").textContent = T("controlHint");
-  $("hAccounts").textContent = T("accounts");
+  $("hAccounts").textContent = T("secAccounts");
+  $("hAccountsHint").textContent = T("freeHint");
+  $("hProviders").textContent = T("secProviders");
+  $("hDefaults").textContent = T("secDefaults");
+  $("hDefaultsHint").textContent = T("defaultsHint");
 
-  const s = data.settings || {};
-  const auto = card(`${caption(T("autoSwitch"))}
-    <div class="switch"><button type="button" data-auto="${!data.auto_switch}" aria-pressed="${data.auto_switch}">${T(data.auto_switch ? "on" : "off")}</button>
-    <span class="hint">${esc(T("autoHint", { p: data.alert_at }))}</span></div>`);
-  $("control").innerHTML = (s.error ? card(error(s.error)) :
-    card(caption(T("model")) + seg("model", s.models.filter((m) => !m.more), s.model) +
-         caption(T("moreModels")) + seg("model", s.models.filter((m) => m.more), s.model)) +
-    card(caption(T("effort")) + seg("effort", s.efforts.map((e) => ({ id: e, label: e })), s.effort) +
-         `<div class="hint">${esc(T("effortHint"))}</div>`)) + auto;
-
-  $("claude").innerHTML = data.claude.map(claudeCard).join("") || `<p class="sub">${T("noSessions")}</p>`;
-
-  const cx = data.codex, ds = data.deepseek;
-  const cxCard = card(head("G", "ChatGPT / Codex", chip(cx.plan)) + (cx.error ? error(cx.error) : mini(cx.score) + cx.rows.map((r) => rowHtml(r)).join("")));
-  const dsBody = ds.error ? error(ds.error) : ds.balances.map((b) => `
-      <div class="money ${ds.available ? "" : "bad"}">${b.total.toFixed(2)}<small>${esc(b.currency)}</small></div>
-      <div class="kv"><span>${T("toppedUp")}</span><b>${b.topped_up.toFixed(2)}</b></div>
-      <div class="kv"><span>${T("granted")}</span><b>${b.granted.toFixed(2)}</b></div>`).join("");
-  const dsCard = card(head("D", "DeepSeek API", chip(T("credits")) + (ds.error || ds.available ? "" : chip(T("noBalance"), "on"))) + dsBody);
-  $("others").innerHTML = cxCard + dsCard;
-
-  const ag = data.antigravity;
-  $("agPlan").textContent = ag.plan || "";
-  if (ag.error) $("antigravity").innerHTML = card(error(ag.error));
-  else {
-    const groups = {};
-    ag.rows.forEach((r) => (groups[r.group] ||= []).push(r));
-    $("antigravity").innerHTML = Object.entries(groups).map(([g, rows]) =>
-      card(head(g[0], g, chip(rows.length > 1 ? T("modelCount", { n: rows.length }) : T("modelOne"))) + mini(least(rows)) + rows.map((r) => rowHtml(r, true)).join(""))).join("");
-  }
+  $("accounts").innerHTML = accountsTable();
+  $("providers").innerHTML = providersTable();
+  $("settings").innerHTML = settingsList();
 
   const sb = $("switchBest");
   sb.disabled = !best;
   sb.textContent = best ? T("switchBest", { n: best.n, p: Math.round(best.score) }) : T("noBest");
 
-  const hot = cur && (cur.rows || []).filter((r) => r.blocking && r.used >= data.alert_at).sort((a, b) => b.used - a.used);
-  const banner = $("banner");
-  if (hot && hot.length) {
-    banner.innerHTML = `<span><strong>${T("bannerHead", { n: cur.n, p: Math.round(hot[0].used) })}</strong> ${esc(T("bannerIn", { label: hot[0].label }))}
-      ${best ? T("bannerBest", { n: best.n, p: Math.round(best.score) }) : T("bannerNone")}</span>
-      ${best ? `<button class="primary" type="button" data-n="${best.n}">${T("bannerButton", { n: best.n })}</button>` : ""}`;
-    banner.classList.add("show");
-  } else banner.classList.remove("show");
+  const hot = cur && (cur.rows || []).filter((r) => r.blocking && r.used >= data.alert_at).sort((a, b) => b.used - a.used)[0];
+  $("alert").classList.toggle("show", Boolean(hot));
+  if (hot) $("alert").innerHTML = `<span><strong>${esc(T("alertHead", { n: cur.n, p: Math.round(hot.used), label: hot.label }))}</strong>
+    ${best ? T("alertBest", { n: best.n, p: Math.round(best.score) }) : T("alertNone")}</span>` +
+    (best ? `<button class="primary" type="button" data-n="${best.n}">${T("alertButton", { n: best.n })}</button>` : "");
 
   const m = Math.round((Date.now() - new Date(data.updated)) / 60000);
-  $("sub").className = "sub";
-  $("sub").innerHTML = `<span class="dot"></span>` + esc(T("status", { ago: m < 1 ? T("justNow") : T("minAgo", { m }), m: data.every / 60, p: data.alert_at }));
+  $("status").className = "status";
+  $("status").innerHTML = `<span class="dot"></span>` + esc(`${T("online")} · ` + T("status", { ago: m < 1 ? T("justNow") : T("minAgo", { m }), m: data.every / 60, p: data.alert_at }));
 }
 
 function toast(msg) {
@@ -448,7 +446,7 @@ async function api(path, body) {
 
 async function load() {
   try { data = await api("/api/data"); render(); }
-  catch (e) { $("sub").className = "sub err"; $("sub").innerHTML = `<span class="dot"></span>` + T("offline"); }
+  catch (e) { $("status").className = "status down"; $("status").innerHTML = `<span class="dot"></span>` + esc(T("offline")); }
 }
 
 async function act(path, body, done) {
@@ -461,9 +459,9 @@ const modelLabel = (s) => (s.models.find((m) => m.id === s.model) || {}).label |
 
 document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (!b) {
-    const compact = matchMedia("(max-width: 620px)").matches && e.target.closest(".card[data-n]");
-    if (compact) act("/api/switch", { n: Number(compact.dataset.n) }, switched);
+  if (!b) {  // in the compact layout the whole account row is the switch control
+    const row = compact.matches && e.target.closest("tr[data-n]");
+    if (row) act("/api/switch", { n: Number(row.dataset.n) }, switched);
     return;
   }
   if (b.dataset.n) act("/api/switch", { n: Number(b.dataset.n) }, switched);
@@ -478,6 +476,7 @@ $("refresh").onclick = async () => {
   b.disabled = false; b.textContent = T("refresh");
 };
 
+compact.addEventListener("change", () => data && render());
 load();
 setInterval(load, 30000);
 </script>
