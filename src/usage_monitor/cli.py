@@ -285,15 +285,55 @@ def _exhausted(directory: Path | None) -> bool:
     return any(r.get("blocking") and r.get("used", 0) >= 100 for r in acc.get("rows", []))
 
 
-def _without_resume(args: list[str]) -> list[str]:
-    """Drops -c/--continue and -r/--resume [id]: the reopened session names its conversation itself."""
-    out, skip = [], False
-    for a in args:
-        if skip and not a.startswith("-"):
-            skip = False
-            continue
-        skip = a in ("-r", "--resume")
-        if not (skip or a in ("-c", "--continue") or a.startswith("--resume=")):
+# Claude Code options followed by a value (`claude --help`); anything else that is not an option is the prompt.
+# shortcut: a fixed list; an option added later that takes a value loses it on reopen until it is listed here
+VALUE_OPTIONS = frozenset(
+    [
+        "--add-dir",
+        "--agent",
+        "--agents",
+        "--append-system-prompt",
+        "--autocompact",
+        "--betas",
+        "--debug-file",
+        "--effort",
+        "--environment",
+        "--fallback-model",
+        "--file",
+        "--input-format",
+        "--json-schema",
+        "--max-budget-usd",
+        "--mcp-config",
+        "--model",
+        "-n",
+        "--name",
+        "--output-format",
+        "--permission-mode",
+        "--permission-prompts",
+        "--plugin-dir",
+        "--plugin-url",
+        "--remote-control-session-name-prefix",
+        "--session-id",
+        "--setting-sources",
+        "--settings",
+        "--system-prompt",
+        "--system-prompt-snapshot",
+        "--tools",
+    ]
+)
+
+
+def _reopen_args(args: list[str]) -> list[str]:
+    """The options to reopen with: without -c/--continue, -r/--resume [id] (the session is named instead) and
+    the initial prompt (it was already sent)."""
+    out: list[str] = []
+    rest = iter(args)
+    for a in rest:
+        if a in ("-r", "--resume"):
+            continue  # its optional id is dropped below as a positional
+        if a in VALUE_OPTIONS:
+            out += [a, next(rest, "")]
+        elif a.startswith("-") and a not in ("-c", "--continue") and not a.startswith("--resume="):
             out.append(a)
     return out
 
@@ -342,7 +382,7 @@ def launch_claude(args: list[str]) -> int:
     oneshot = "-p" in args or "--print" in args
     token = str(os.getpid())
     launch = config.CONFIG_DIR / "launches" / token
-    base, run_args = _without_resume(args), args
+    base, run_args = _reopen_args(args), args
     try:
         while True:
             env = os.environ | {LAUNCHER: token}

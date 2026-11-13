@@ -204,3 +204,8 @@ def test_launcher_without_a_reported_session_starts_over(home: Path, monkeypatch
     accounts.set_current(ClaudeAccount(1, "a@x", home / ".claude-a"))
     assert cli.launch_claude(["--chrome", "hola"]) == 0
     assert runs[1].cmd[1:] == ["--chrome", "hola"] and runs[1].env["CLAUDE_CONFIG_DIR"] == str(home / ".claude-b")
+
+
+def test_reopen_args_keep_options_and_drop_the_prompt_and_the_session() -> None:
+    args = ["--model", "haiku", "--resume", "5d2e", "--chrome", "-c", "--effort", "max", "Responde: hola"]
+    assert cli._reopen_args(args) == ["--model", "haiku", "--chrome", "--effort", "max"]
