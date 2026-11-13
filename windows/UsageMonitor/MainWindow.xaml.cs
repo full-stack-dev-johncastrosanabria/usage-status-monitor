@@ -226,7 +226,7 @@ partial class MainWindow : Window
 
             if (compact)
             {
-                t.Cell(c.Error != null ? Txt(T("failed"), "Bad") : Meter(c.Score, 44, right: true), 2);
+                t.Cell(c.Error != null ? Txt(T("failed"), "Bad") : Free(c.Score), 2);
                 continue;
             }
             t.Cell(Txt(c.Plan ?? "", "Dim"), 2);
@@ -253,9 +253,9 @@ partial class MainWindow : Window
         t.Head(compact ? [T("colLimit"), T("colFree")] : [T("colSource"), T("colLimit"), T("colFree"), T("colResets")]);
 
         Source(t, "ChatGPT / Codex", d.Codex.Plan ?? "", d.Codex.Error,
-            (d.Codex.Rows ?? []).Select(r => (r.Label, Meter(r.Free, right: compact), Countdown(r.Reset))));
+            (d.Codex.Rows ?? []).Select(r => (r.Label, Free(r.Free), Countdown(r.Reset))));
         Source(t, "Antigravity", d.Antigravity.Plan ?? "", d.Antigravity.Error,
-            (d.Antigravity.Rows ?? []).Select(r => ($"{r.Group} · {r.Label}", Meter(r.Free, right: compact), Countdown(r.Reset))));
+            (d.Antigravity.Rows ?? []).Select(r => ($"{r.Group} · {r.Label}", Free(r.Free), Countdown(r.Reset))));
         var ds = d.Deepseek;
         Source(t, "DeepSeek API", "", ds.Error, (ds.Balances ?? []).Select(b => (T("balance"),
             (FrameworkElement)Txt($"{Money(b.Total)} {b.Currency}", ds.Available ? "Ok" : "Bad", bold: true),
@@ -399,6 +399,9 @@ partial class MainWindow : Window
         return p;
     }
 
+    /// <summary>A "Free" column cell: in the compact layout the meter is shorter and right-aligned.</summary>
+    FrameworkElement Free(double free) => compact ? Meter(free, 44, right: true) : Meter(free);
+
     FrameworkElement Meter(double free, double barWidth = 84, bool right = false)
     {
         var tone = B(Tone(free));
@@ -493,19 +496,20 @@ partial class MainWindow : Window
     {
         UpdateLayout();
         var at = Main.TranslatePoint(new Point(0, 0), Root);
-        double w = Root.ActualWidth, h = at.Y + Main.ActualHeight + Main.Margin.Bottom;
+        // DesiredSize, not ActualHeight: a short page is stretched to the window, a PNG should not be.
+        double w = Root.ActualWidth, h = Math.Ceiling(at.Y - Main.Margin.Top + Main.DesiredSize.Height);
         var dpi = VisualTreeHelper.GetDpi(this);
         var visual = new DrawingVisual();
         using (var dc = visual.RenderOpen())
         {
             dc.DrawRectangle(B("Bg"), null, new Rect(0, 0, w, h));
+            // The brush's coordinates already include Main's offset (its margin and centring) in the page.
             var brush = new VisualBrush(Main)
             {
-                Stretch = Stretch.None, ViewboxUnits = BrushMappingMode.Absolute,
-                Viewbox = new Rect(0, 0, Main.ActualWidth, Main.ActualHeight),
+                Stretch = Stretch.None, ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, w, h),
                 AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top,
             };
-            dc.DrawRectangle(brush, null, new Rect(at.X, at.Y, Main.ActualWidth, Main.ActualHeight));
+            dc.DrawRectangle(brush, null, new Rect(0, 0, w, h));
         }
         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(w * dpi.DpiScaleX), (int)Math.Ceiling(h * dpi.DpiScaleY),
             dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
