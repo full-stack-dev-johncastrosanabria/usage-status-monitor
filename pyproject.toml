@@ -32,6 +32,7 @@ packages = ["src/usage_monitor"]
 line-length = 120
 target-version = "py312"
 src = ["src", "tests"]
+extend-exclude = ["docs"]  # plans and specs quote code; they are not code
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PTH", "BLE", "A", "C4", "PL"]
