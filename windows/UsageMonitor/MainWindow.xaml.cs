@@ -387,7 +387,16 @@ partial class MainWindow : Window
     ToggleButton Option(string label, bool chosen, Func<Task> act)
     {
         var b = new ToggleButton { Content = label, IsChecked = chosen, Style = (Style)FindResource("Option") };
-        b.Click += (_, _) => _ = act();
+        // Checked, not Click: UI Automation (Narrator, voice access) toggles without raising Click.
+        // The chosen one stays chosen until another is picked; the render after the answer redraws the group.
+        var restoring = false;
+        b.Checked += (_, _) => { if (!restoring) _ = act(); };
+        b.Unchecked += (_, _) =>
+        {
+            restoring = true;
+            b.IsChecked = true;
+            restoring = false;
+        };
         return b;
     }
 
