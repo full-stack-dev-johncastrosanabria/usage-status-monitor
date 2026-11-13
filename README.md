@@ -1,22 +1,50 @@
-# usage-monitor
+# usage
 
-How much is left on your AI accounts, in one place, and what to do when one runs out.
+**Never run out of AI.** See what is left in every AI subscription you pay for — several Claude accounts,
+ChatGPT/Codex, GitHub Copilot, Antigravity and DeepSeek — and let Claude Code move to the account with the most
+room when one runs out, reopening the same conversation there.
 
-- **Claude** (Pro/Max, several accounts), **ChatGPT/Codex**, **Antigravity** (per-model quota: Gemini, Claude, GPT) and **DeepSeek** (API balance).
-- A desktop alert when a limit reaches 95%.
-- Switch the Claude Code account in one click, or automatically when the active one hits the threshold.
-- Pick Claude Code's default model and effort.
-- A cyber-styled panel, a native macOS app, a Claude Code plugin and a CLI.
+![Switching to the account with the most room](docs/demo.gif)
+
+| macOS | Windows | Linux |
+| --- | --- | --- |
+| ![macOS](docs/macos.png) | ![Windows](docs/windows.png) | ![Linux](docs/linux.png) |
+
+## Why
+
+- **No more checking five websites.** Every limit, what is free and when it resets, in one table: in the menu bar,
+  the tray, a window, the terminal or inside Claude Code.
+- **No more being cut off mid-task.** At 95% you get an alert; with automatic switching, Claude Code finishes its
+  reply, closes and reopens the same conversation on the next account by itself.
+- **Nothing leaves your machine** except each tool's own request to its own provider.
+
+## What it covers
+
+- **Claude** (Pro/Max, as many accounts as you have; add one with a button), **ChatGPT/Codex**, **GitHub Copilot**
+  (premium requests), **Antigravity** (per-model quota: Gemini, Claude, GPT) and **DeepSeek** (API balance).
+- Desktop alerts at 95%, manual or automatic account switching, Claude Code's default model and effort.
+- Native apps for macOS (SwiftUI), Windows (WPF) and Linux (GTK 4), a web panel, a Claude Code plugin and a CLI.
 - English, Spanish and Simplified Chinese.
 
-No dependencies: only the Python 3.12+ standard library.
-
-> **Unofficial project.** It reads the sessions that Claude Code, Codex CLI, Antigravity and opencode already keep
-> on your machine, and uses them to query the same internal services those tools use to show their usage. Those
-> services are undocumented and can change without notice. Credentials never leave your machine except to their own
-> provider, and this tool never refreshes or modifies them.
+> **Unofficial project.** It reads the sessions that Claude Code, Codex CLI, GitHub Copilot, Antigravity and
+> opencode already keep on your machine, and uses them to query the same internal services those tools use to show
+> their usage. Those services are undocumented and can change without notice. Credentials never leave your machine
+> except to their own provider, and this tool never refreshes or modifies them.
 
 ## Install
+
+Download the installer for your system from [Releases](../../releases):
+
+| System | File | First launch |
+| --- | --- | --- |
+| macOS (Apple Silicon / Intel) | `UsageMonitor-<version>-arm64.dmg` / `-x86_64.dmg` | Drag to Applications, then right-click → **Open** |
+| Windows x64 | `UsageMonitor-<version>-win-x64.zip` | Unzip, run `UsageMonitor.exe`, then **More info → Run anyway** |
+| Debian / Ubuntu | `usage-monitor_<version>_all.deb` | `sudo apt install ./usage-monitor_<version>_all.deb` |
+
+> **The installers are not signed yet.** macOS Gatekeeper and Windows SmartScreen warn the first time you open
+> them; the steps above get past the warning. Check the download against `SHA256SUMS.txt` on the release page.
+
+Command line only, on any system with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 uv tool install git+https://github.com/full-stack-dev-johncastrosanabria/usage-status-monitor
@@ -32,7 +60,8 @@ usage panel      # open the panel
 | `usage current` | Only the active Claude account |
 | `usage switch [N]` | Make account N active, or the one with the most room |
 | `usage autoswitch on\|off` | Switch automatically when the active account hits the threshold |
-| `usage claude [...]` | Run Claude Code with the active account |
+| `usage claude [...]` | Run Claude Code with the active account; moves it to the next one when you switch |
+| `usage connect` | Sign in another Claude account (opens the browser) |
 | `usage model [M]` · `usage effort [E]` | Claude Code's default model and effort |
 | `usage panel` | Open the panel (and start the local server) |
 | `usage autostart on\|off` | Open the panel when you log in |
@@ -43,12 +72,10 @@ usage panel      # open the panel
 
 ### Several Claude accounts
 
-Claude Code keeps each account in a configuration folder. The main one is `~/.claude`; add the others like this:
-
-```sh
-CLAUDE_CONFIG_DIR=~/.claude-work claude     # inside: /login
-usage sync                                  # same configuration and conversations everywhere
-```
+Claude Code keeps each account in a configuration folder. The main one is `~/.claude`; add the others with
+**+ Connect account** in the panel or `usage connect`: it signs a new `~/.claude-N` folder in through your browser
+and shares your configuration and conversations with it (`usage sync`). Folders you made by hand
+(`CLAUDE_CONFIG_DIR=~/.claude-work claude`, then `/login`) are found too.
 
 `usage` finds every signed-in `~/.claude-*` folder by itself. To make `claude` always use the active account, add
 an alias to your shell:
@@ -77,13 +104,17 @@ the app is running, and it only switches to an account that is not over the thre
 Edge/Chrome/Chromium window in app mode; otherwise a tab in the default browser. The server only listens on
 `127.0.0.1` and rejects requests coming from other websites.
 
-### macOS app
+### Native apps
+
+The apps start the local server when nothing answers and stop it when they quit. Building them yourself:
 
 ```sh
-scripts/build-app.sh        # builds ~/Applications/UsageMonitor.app (needs the Xcode command line tools)
+scripts/build-app.sh                               # macOS: ~/Applications/UsageMonitor.app (Xcode tools)
+pwsh scripts/build-windows.ps1 -Runtime win-x64    # Windows: dist/windows/win-x64/UsageMonitor.exe (.NET 8)
+scripts/build-deb.sh                               # Linux: dist/linux/usage-monitor_<version>_all.deb
 ```
 
-It shows the panel and a menu bar indicator with the % free on the active account.
+macOS adds a menu bar indicator and Windows a tray icon, both with the % free on the active account.
 
 ### Claude Code plugin
 
@@ -114,14 +145,14 @@ takes precedence.
 
 | | macOS | Linux | Windows |
 | --- | --- | --- | --- |
-| Claude, ChatGPT/Codex, DeepSeek | ✅ | ✅ | ✅ |
+| Claude, ChatGPT/Codex, Copilot, DeepSeek | ✅ | ✅ | ✅ |
 | Antigravity | ✅ | Secret Service (`secret-tool`) | Credential Manager |
 | Alerts | Notification Centre | `notify-send` | Windows notification |
-| Panel | Native app or window | Chromium window or browser | Edge/Chrome window or browser |
+| Native app | SwiftUI (macOS 14+) | GTK 4 | WPF (.NET 8) |
 | Start at login | LaunchAgent | `~/.config/autostart` | Startup folder |
 
-Day-to-day development and manual testing happen on macOS. Linux and Windows are covered by the test suite in
-continuous integration.
+Day-to-day development happens on macOS. The test suite runs on all three systems in continuous integration, and
+the Linux and Windows apps were checked on Debian (Docker), Kali and Windows 11 virtual machines.
 
 ## Development
 
