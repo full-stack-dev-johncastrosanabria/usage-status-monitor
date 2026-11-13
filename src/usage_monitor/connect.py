@@ -66,10 +66,11 @@ def run(order: tuple[str, ...] = (), interactive: bool = False) -> Result:
     if not email:  # the browser was closed, or the sign-in failed
         _forget(directory)
         return Result("cancelled")
-    others = [a for a in accounts.discover(order) if a.config_dir != directory]
-    if twin := next((a for a in others if a.email == email), None):
+    folders = [None, *(d for d in sorted(config.HOME.glob(".claude-*")) if d.is_dir() and d != directory)]
+    if any(accounts.email_of(d) == email for d in folders):  # every folder: discover() keeps one per email
         _forget(directory)
-        return Result("duplicate", email, twin.number)
+        number = next((a.number for a in accounts.discover(order) if a.email == email), None)
+        return Result("duplicate", email, number)
     try:
         sync.sync_account(directory)  # same CLAUDE.md, settings, plugins and shared conversations
     except (OSError, ValueError) as e:  # the account works anyway; `usage sync` can retry

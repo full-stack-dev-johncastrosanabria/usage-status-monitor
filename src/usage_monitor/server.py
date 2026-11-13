@@ -40,6 +40,7 @@ class Monitor:
         self._last = 0.0
         self._fetch_lock = threading.Lock()  # serialises fetches; reads never wait
         self.connecting: dict[str, Any] = {"status": "idle"}
+        self._connect_lock = threading.Lock()  # one browser sign-in at a time, even with two quick clicks
 
     def config(self) -> Config:
         """Reloaded on every use, so changes from the CLI or the panel apply without a restart."""
@@ -118,9 +119,10 @@ class Monitor:
         """Starts signing in another Claude account in the browser; the payload reports how it goes."""
         if demo.ENABLED:
             raise ValueError(tr("Not available with demo data."))
-        if self.connecting["status"] == "waiting":
-            raise ValueError(tr("A sign-in is already open in the browser."))
-        self.connecting = {"status": "waiting"}
+        with self._connect_lock:
+            if self.connecting["status"] == "waiting":
+                raise ValueError(tr("A sign-in is already open in the browser."))
+            self.connecting = {"status": "waiting"}
         threading.Thread(target=self._connect, daemon=True, name="connect").start()
 
     def _connect(self) -> None:

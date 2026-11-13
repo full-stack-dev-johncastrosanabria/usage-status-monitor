@@ -67,3 +67,10 @@ def test_a_cancelled_sign_in_leaves_nothing_behind(home: Path, login: Login) -> 
 def test_without_claude_it_fails_cleanly(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(connect.shutil, "which", lambda name: None)
     assert connect.run().status == "failed" and not (home / ".claude-2").exists()
+
+
+def test_a_duplicate_is_found_even_when_the_new_folder_sorts_first(home: Path, login: Login) -> None:
+    make_account(home, ".claude-3", "b@x.com")  # .claude-2 is free, and sorts before .claude-3
+    login("b@x.com")
+    assert connect.run() == connect.Result("duplicate", "b@x.com", 2)
+    assert not (home / ".claude-2").exists()

@@ -209,3 +209,26 @@ def test_launcher_without_a_reported_session_starts_over(home: Path, monkeypatch
 def test_reopen_args_keep_options_and_drop_the_prompt_and_the_session() -> None:
     args = ["--model", "haiku", "--resume", "5d2e", "--chrome", "-c", "--effort", "max", "Responde: hola"]
     assert cli._reopen_args(args) == ["--model", "haiku", "--chrome", "--effort", "max"]
+    args = ["--disallowedTools", "Bash(rm:*)", "Edit", "-w", "feat", "--add-dir", "a", "b", "do it"]
+    assert cli._reopen_args(args) == ["--disallowedTools", "Bash(rm:*)", "Edit", "-w", "feat", "--add-dir", "a", "b"]
+    assert cli._reopen_args(["--resume", "5d2e"]) == [] and cli._reopen_args(["-w"]) == ["-w"]
+
+
+def test_a_claude_run_inside_the_session_cannot_take_over_the_report(
+    home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(cli.LAUNCHER, "4242")
+    launch = cli._launch_file()
+    assert launch is not None
+
+    def hook(sid: str, event: str, source: str | None = None) -> dict[str, object]:
+        payload = {"session_id": sid, "hook_event_name": event, "source": source}
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+        cli.cmd_notice(argparse.Namespace(), Config(port=1))
+        return cli._launch_state(launch)
+
+    assert hook("parent", "UserPromptSubmit") == {"session": "parent", "busy": True}
+    assert hook("child", "SessionStart", "startup") == {"session": "parent", "busy": True}  # `claude -p` from Bash
+    assert hook("child", "Stop") == {"session": "parent", "busy": True}
+    assert hook("parent", "Stop") == {"session": "parent", "busy": False}
+    assert hook("after-clear", "SessionStart", "clear") == {"session": "after-clear", "busy": False}

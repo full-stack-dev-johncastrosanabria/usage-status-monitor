@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ from .config import Config, load_config, save_prefs
 from .i18n import tr
 from .server import is_running, local_json, port_in_use, serve
 from .snapshot import collect, collect_current, to_json
-from .system import atomic_write_text
+from .system import QUIET, atomic_write_text
 from .term import print_snapshot
 
 
@@ -232,7 +233,7 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
     try:
         hook = json.loads(sys.stdin.read() or "{}") if not sys.stdin.isatty() else {}
         event = hook.get("hook_event_name")
-        if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str):
+        if (launch := _launch_file()) and isinstance(sid := hook.get("session_id"), str) and _ours(launch, hook):
             atomic_write_text(launch, json.dumps({"session": sid, "busy": event == "UserPromptSubmit"}))
         if event == "Stop":
             return 0
@@ -263,6 +264,15 @@ def _launch_file() -> Path | None:
     return config.CONFIG_DIR / "launches" / token if token.isdigit() else None
 
 
+def _ours(launch: Path, hook: dict[str, Any]) -> bool:
+    """Is this hook from the session the launcher started? A `claude` that session runs inherits the launcher's
+    variable too: its other session id is ignored, unless the session itself moved on (/clear, /resume)."""
+    known = _launch_state(launch).get("session")
+    if known in (None, hook.get("session_id")):
+        return True
+    return hook.get("hook_event_name") == "SessionStart" and hook.get("source") in ("clear", "resume", "compact")
+
+
 def _launch_state(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -285,32 +295,27 @@ def _exhausted(directory: Path | None) -> bool:
     return any(r.get("blocking") and r.get("used", 0) >= 100 for r in acc.get("rows", []))
 
 
-# Claude Code options followed by a value (`claude --help`); anything else that is not an option is the prompt.
-# shortcut: a fixed list; an option added later that takes a value loses it on reopen until it is listed here
+# Claude Code options and their values (`claude --help`); what is left over is the prompt, already sent.
+# shortcut: fixed lists; an option added later that takes a value loses it on reopen until it is listed here
 VALUE_OPTIONS = frozenset(
     [
-        "--add-dir",
         "--agent",
         "--agents",
         "--append-system-prompt",
         "--autocompact",
-        "--betas",
         "--debug-file",
         "--effort",
         "--environment",
         "--fallback-model",
-        "--file",
         "--input-format",
         "--json-schema",
         "--max-budget-usd",
-        "--mcp-config",
         "--model",
         "-n",
         "--name",
         "--output-format",
         "--permission-mode",
         "--permission-prompts",
-        "--plugin-dir",
         "--plugin-url",
         "--remote-control-session-name-prefix",
         "--session-id",
@@ -318,36 +323,84 @@ VALUE_OPTIONS = frozenset(
         "--settings",
         "--system-prompt",
         "--system-prompt-snapshot",
+    ]
+)
+MANY_VALUES = frozenset(
+    [
+        "--add-dir",
+        "--allowedTools",
+        "--allowed-tools",
+        "--betas",
+        "--disallowedTools",
+        "--disallowed-tools",
+        "--file",
+        "--mcp-config",
+        "--plugin-dir",
         "--tools",
     ]
+)
+OPTIONAL_VALUE = frozenset(
+    ["-d", "--debug", "-w", "--worktree", "--remote-control", "--teleport", "--cloud", "--from-pr"]
 )
 
 
 def _reopen_args(args: list[str]) -> list[str]:
     """The options to reopen with: without -c/--continue, -r/--resume [id] (the session is named instead) and
-    the initial prompt (it was already sent)."""
+    the initial prompt. The last free word is always the prompt, never an option's value."""
     out: list[str] = []
-    rest = iter(args)
-    for a in rest:
+    i, n = 0, len(args)
+
+    def free_word() -> bool:  # the next word is an option's value, not the final prompt
+        return i < n - 1 and not args[i].startswith("-")
+
+    while i < n:
+        a = args[i]
+        i += 1
+        if a in ("-c", "--continue") or a.startswith("--resume=") or not a.startswith("-"):
+            continue
         if a in ("-r", "--resume"):
-            continue  # its optional id is dropped below as a positional
-        if a in VALUE_OPTIONS:
-            out += [a, next(rest, "")]
-        elif a.startswith("-") and a not in ("-c", "--continue") and not a.startswith("--resume="):
-            out.append(a)
+            i += free_word()
+            continue
+        out.append(a)
+        if (a in VALUE_OPTIONS and i < n) or (a in OPTIONAL_VALUE and free_word()):
+            out.append(args[i])
+            i += 1
+        elif a in MANY_VALUES:
+            while free_word():
+                out.append(args[i])
+                i += 1
     return out
 
 
 def _run(cmd: list[str], env: dict[str, str], used: Path | None, launch: Path, watch: bool) -> tuple[int, bool]:
     """Runs Claude Code. With `watch`, stops it once another account is selected and Claude is not answering
     (or its account is exhausted, so nothing is lost). Returns (exit code, whether a reply was cut short)."""
-    proc = subprocess.Popen(cmd, env=env)
+    # Ctrl+C belongs to Claude Code, which gets it too: the launcher must outlive it (a handler, not SIG_IGN,
+    # which the child would inherit)
+    previous = signal.signal(signal.SIGINT, lambda *_: None)
+    try:
+        return _watch(subprocess.Popen(cmd, env=env), used, launch, watch)
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
+def _stop(proc: subprocess.Popen[bytes]) -> None:
+    """Closes Claude Code and what it started (MCP servers, `claude.cmd`'s node on Windows)."""
+    if sys.platform == "win32":  # terminate() there is TerminateProcess on the top process only
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False, **QUIET)
+    else:
+        proc.terminate()  # the transcript is already on disk: --resume picks it up
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+
+
+def _watch(proc: subprocess.Popen[bytes], used: Path | None, launch: Path, watch: bool) -> tuple[int, bool]:
     checked = -EXHAUSTED_EVERY
     while (code := proc.poll()) is None:
-        try:
-            time.sleep(POLL)
-        except KeyboardInterrupt:  # Ctrl+C belongs to Claude Code, which got it too
-            continue
+        time.sleep(POLL)
         if not watch or accounts.selected_dir() == used:
             continue
         busy = bool(_launch_state(launch).get("busy"))
@@ -357,12 +410,7 @@ def _run(cmd: list[str], env: dict[str, str], used: Path | None, launch: Path, w
             checked = time.monotonic()
             if not _exhausted(used):
                 continue
-        proc.terminate()  # the transcript is on disk: --resume picks it up
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+        _stop(proc)
         return 0, busy
     return code, False
 
@@ -385,6 +433,7 @@ def launch_claude(args: list[str]) -> int:
     base, run_args = _reopen_args(args), args
     try:
         while True:
+            launch.unlink(missing_ok=True)  # only this run's session may report
             env = os.environ | {LAUNCHER: token}
             used = accounts.selected_dir()
             if not pinned and used:
