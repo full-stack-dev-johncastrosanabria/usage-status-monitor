@@ -75,6 +75,8 @@ struct Payload: Decodable {
     let codex: Usage
     let antigravity: Usage
     let deepseek: Credits
+    /// Missing from servers older than 0.2.
+    let copilot: Usage?
     /// Number of the account with the most room, when one beats the active account.
     let best: Int?
     /// % used from which the server alerts (and switches, if automatic switching is on).

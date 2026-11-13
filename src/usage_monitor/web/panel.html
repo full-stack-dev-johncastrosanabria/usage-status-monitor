@@ -377,6 +377,7 @@ function providersTable() {
   return `<table><thead><tr>${head}</tr></thead><tbody>` +
     providerRows("ChatGPT / Codex", data.codex.plan || "", data.codex) +
     providerRows("Antigravity", data.antigravity.plan || "", data.antigravity, (r) => `${r.group} · ${r.label}`) +
+    (data.copilot ? providerRows("GitHub Copilot", data.copilot.plan || "", data.copilot) : "") +
     providerRows("DeepSeek API", "", data.deepseek) + `</tbody></table>`;
 }
 
