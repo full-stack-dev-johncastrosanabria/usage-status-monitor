@@ -575,6 +575,7 @@ class App(Gtk.Application):
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
+        Gtk.Window.set_default_icon_name("usage-monitor")  # installed by the .deb (hicolor theme)
         settings = Gtk.Settings.get_default()
         if settings:
             settings.props.gtk_application_prefer_dark_theme = True
