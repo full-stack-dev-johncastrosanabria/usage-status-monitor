@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from usage_monitor import accounts, config, server, settings
+from usage_monitor import accounts, config, demo, server, settings, snapshot
 from usage_monitor.alerts import Alert
 from usage_monitor.config import Config
 from usage_monitor.models import AccountStatus, ClaudeAccount, Snapshot, Usage, Window
@@ -114,3 +114,20 @@ def test_rejects_cross_site_requests(api: Api) -> None:
     assert api("/api/switch", {}, headers={})[0] == 403  # without the custom header
     assert api("/api/data", headers={"Host": "evil.example"})[0] == 403  # DNS rebinding
     assert api("/api/nothing", {})[0] == 404
+
+
+def test_demo_mode_never_touches_real_accounts_or_settings(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(demo, "ENABLED", True)
+    monkeypatch.setattr(demo, "_state", {"current": 1, "model": "opus", "effort": "high"})
+    monkeypatch.setattr(server, "notify", lambda alert: None)
+    monitor = server.Monitor(port=1)
+
+    payload = monitor.payload()
+    assert payload["demo"] is True and [c["current"] for c in payload["claude"]] == [True, False, False, False]
+    assert payload["claude"][0]["rows"][0] == payload["claude"][0]["rows"][0] | {"label": "Session (5h)", "used": 96}
+    assert len(payload["antigravity"]["rows"]) == 5 and payload["deepseek"]["balances"][0]["total"] == 12.4
+
+    monitor.switch(None)  # to the best one
+    assert [c["n"] for c in monitor.payload()["claude"] if c["current"]] == [2]
+    assert snapshot.collect(config.load_config()).current().account.number == 2  # type: ignore[union-attr]
+    assert not config.active_file().exists()  # the real selection is untouched

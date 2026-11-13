@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from functools import partial
 from typing import Any
 
-from . import accounts, i18n, settings
+from . import accounts, demo, i18n, settings
 from .config import Config
 from .i18n import tr
 from .models import AccountStatus, ClaudeAccount, Credits, ProviderError, Snapshot, Usage
@@ -42,6 +42,8 @@ def collect_current(cfg: Config) -> Snapshot:
 
 
 def collect(cfg: Config) -> Snapshot:
+    if demo.ENABLED:
+        return demo.snapshot()
     accs = accounts.discover(cfg.claude_order)
     current = accounts.current_dir()
     with ThreadPoolExecutor(max_workers=len(accs) + 3) as pool:
@@ -79,7 +81,8 @@ def to_json(snap: Snapshot, cfg: Config) -> dict[str, Any]:
         item.update(_usage_json(s.usage if s.usage else s.error))
         claude_items.append(item)
     try:
-        cfg_settings: dict[str, Any] = settings.read().to_json()  # read every time: /model changes it too
+        # read every time: /model changes it too
+        cfg_settings: dict[str, Any] = demo.settings_json() if demo.ENABLED else settings.read().to_json()
     except (OSError, ValueError) as e:
         cfg_settings = {"error": str(e)}
     return {
@@ -94,5 +97,6 @@ def to_json(snap: Snapshot, cfg: Config) -> dict[str, Any]:
         "settings": cfg_settings,
         "auto_switch": cfg.auto_switch,
         "lang": i18n.language(),
+        "demo": demo.ENABLED,
         "languages": i18n.LANGUAGES,
     }

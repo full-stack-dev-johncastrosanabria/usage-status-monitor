@@ -12,12 +12,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from typing import Any
 
-from . import accounts, i18n, settings
+from . import accounts, demo, i18n, settings
 from .alerts import AlertTracker, auto_switch
 from .config import Config, load_config, save_prefs
 from .desktop import notify
 from .i18n import tr
-from .models import Snapshot
+from .models import AccountStatus, Snapshot
 from .snapshot import collect, to_json
 
 log = logging.getLogger(__name__)
@@ -50,15 +50,22 @@ class Monitor:
             fired = []
             if cfg.auto_switch and (switch := auto_switch(snap, cfg.alert_at)):
                 target, alert = switch
-                accounts.set_current(target.account)
-                for s in snap.claude:
-                    s.current = s is target
+                self._select(snap, target)
                 fired.append(alert)
             fired += self.alerts.check(snap, cfg.alert_at)
             self._snap, self._last = snap, time.time()
         for alert in fired:
             notify(alert)
         return snap
+
+    @staticmethod
+    def _select(snap: Snapshot, target: AccountStatus) -> None:
+        if demo.ENABLED:
+            demo.select(target.account.number)
+        else:
+            accounts.set_current(target.account)
+        for s in snap.claude:
+            s.current = s is target
 
     def snapshot(self) -> Snapshot:
         return self._snap or self.refresh()
@@ -72,9 +79,7 @@ class Monitor:
             if number is None:
                 raise ValueError(tr("No other account has free usage right now."))
             raise ValueError(tr("There is no account #{n}.", n=number))
-        accounts.set_current(status.account)
-        for s in snap.claude:
-            s.current = s is status
+        self._select(snap, status)
 
     def set_prefs(self, language: Any = None, auto: Any = None) -> None:
         changes: dict[str, Any] = {}
@@ -148,7 +153,10 @@ def make_handler(monitor: Monitor) -> type[BaseHTTPRequestHandler]:
                     n = body.get("n")
                     monitor.switch(int(n) if n is not None else None)
                 elif self.path == "/api/settings":
-                    settings.write(model=body.get("model"), effort=body.get("effort"))
+                    if demo.ENABLED:
+                        demo.set_settings(body.get("model"), body.get("effort"))
+                    else:
+                        settings.write(model=body.get("model"), effort=body.get("effort"))
                 elif self.path == "/api/prefs":
                     monitor.set_prefs(language=body.get("language"), auto=body.get("auto_switch"))
                 else:
