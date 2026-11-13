@@ -34,8 +34,12 @@ jobs:
         with: { dotnet-version: "8.0.x" }
       - run: sh scripts/build-standalone.sh
         shell: bash
-      - run: windows/package.ps1
+      - name: Package the app with the backend
         shell: pwsh
+        run: |
+          scripts/build-windows.ps1 -Runtime win-x64 -Backend dist/standalone/usage
+          $v = (Select-String -Path pyproject.toml -Pattern '^version = "(.*)"').Matches[0].Groups[1].Value
+          Compress-Archive -Path dist/windows/win-x64/* -DestinationPath "dist/windows/UsageMonitor-$v-win-x64.zip"
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: dist/windows/*.zip }
 

@@ -130,6 +130,7 @@ partial class MainWindow : Window
     void OnRefresh(object sender, RoutedEventArgs e) => _ = Refresh();
     void OnSwitchBest(object sender, RoutedEventArgs e) => _ = SwitchTo(null);
     void OnAlertSwitch(object sender, RoutedEventArgs e) => _ = SwitchTo((int)AlertButton.Tag);
+    void OnConnect(object sender, RoutedEventArgs e) => _ = Act("/api/connect", new { });
 
     // ---- rendering ----
 
@@ -153,6 +154,21 @@ partial class MainWindow : Window
         DefaultsHint.Text = T("defaultsHint");
 
         AccountsHost.Child = Scrollable(AccountsTable(d));
+        var c = d.Connect ?? new Connect("idle");
+        ConnectButton.Content = T("connect");
+        ConnectButton.IsEnabled = c.Status != "waiting" && !d.Demo;
+        (string, object)[] cv = [("n", c.Number?.ToString() ?? ""), ("email", c.Email ?? ""), ("error", c.Error ?? "")];
+        ConnectText.Text = c.Status switch
+        {
+            "waiting" => T("connectWaiting"),
+            "connected" => T("connectDone", cv),
+            "duplicate" => T("connectDup", cv),
+            "cancelled" => T("connectCancelled"),
+            "failed" => T("connectFailed", cv),
+            _ => "",
+        };
+        if (c.Status == "waiting")  // the new account appears as soon as its browser sign-in ends
+            Dispatcher.InvokeAsync(async () => { await Task.Delay(3000); await Load(); });
         ProvidersHost.Child = Scrollable(ProvidersTable(d));
         DefaultsHost.Child = SettingsList(d);
 
@@ -257,6 +273,9 @@ partial class MainWindow : Window
             (d.Codex.Rows ?? []).Select(r => (r.Label, Free(r.Free), Countdown(r.Reset))));
         Source(t, "Antigravity", d.Antigravity.Plan ?? "", d.Antigravity.Error,
             (d.Antigravity.Rows ?? []).Select(r => ($"{r.Group} · {r.Label}", Free(r.Free), Countdown(r.Reset))));
+        if (d.Copilot is { } gh)
+            Source(t, "GitHub Copilot", gh.Plan ?? "", gh.Error,
+                (gh.Rows ?? []).Select(r => (r.Label, Free(r.Free), Countdown(r.Reset))));
         var ds = d.Deepseek;
         Source(t, "DeepSeek API", "", ds.Error, (ds.Balances ?? []).Select(b => (T("balance"),
             (FrameworkElement)Txt($"{Money(b.Total)} {b.Currency}", ds.Available ? "Ok" : "Bad", bold: true),

@@ -19,7 +19,11 @@ sealed record Settings(string? Model, string? Effort, Model[]? Models, string[]?
 sealed record Payload(
     DateTimeOffset Updated, Account[] Claude, Usage Codex, Usage Antigravity, Credits Deepseek, int? Best,
     double AlertAt, double Every, Settings? Settings, bool AutoSwitch, string Lang,
-    Dictionary<string, string> Languages, bool Demo);
+    Dictionary<string, string> Languages, bool Demo,
+    Usage? Copilot = null,  // missing from servers older than 0.2
+    Connect? Connect = null);
+/// <summary>How the last "connect account" went: idle, waiting, connected, duplicate, cancelled or failed.</summary>
+sealed record Connect(string Status, string? Email = null, int? Number = null, string? Error = null);
 
 /// <summary>An error the server answered with; its message is already translated.</summary>
 sealed class ApiException(string message) : Exception(message);
