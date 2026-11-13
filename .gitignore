@@ -12,3 +12,4 @@ build/
 .playwright-mcp/
 .claude/
 .superpowers/
+.serena/

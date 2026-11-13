@@ -10,6 +10,12 @@ room when one runs out, reopening the same conversation there.
 | --- | --- | --- |
 | ![macOS](docs/macos.png) | ![Windows](docs/windows.png) | ![Linux](docs/linux.png) |
 
+<details><summary>Web panel (<code>usage panel</code>)</summary>
+
+![Web panel](docs/panel.png)
+
+</details>
+
 ## Why
 
 - **No more checking five websites.** Every limit, what is free and when it resets, in one table: in the menu bar,
@@ -43,6 +49,12 @@ Download the installer for your system from [Releases](../../releases):
 
 > **The installers are not signed yet.** macOS Gatekeeper and Windows SmartScreen warn the first time you open
 > them; the steps above get past the warning. Check the download against `SHA256SUMS.txt` on the release page.
+
+With [Homebrew](https://brew.sh) on macOS (app + `usage` command):
+
+```sh
+brew install --cask full-stack-dev-johncastrosanabria/tap/usage-monitor
+```
 
 Command line only, on any system with [uv](https://docs.astral.sh/uv/):
 
