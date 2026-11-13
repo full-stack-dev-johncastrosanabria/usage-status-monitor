@@ -1,6 +1,6 @@
 {
   "name": "usage-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Available usage of your AI accounts inside Claude Code: check it, switch account, and get told when the session should move.",
   "author": { "name": "full-stack-dev-johncastrosanabria" },
   "homepage": "https://github.com/full-stack-dev-johncastrosanabria/usage-status-monitor",
