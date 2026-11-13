@@ -60,9 +60,9 @@ def launch_command(account: ClaudeAccount) -> str:
 
 def fetch(account: ClaudeAccount) -> Usage:
     creds = credentials(account)
-    if not creds:
+    if not isinstance(creds, dict) or not isinstance(creds.get("accessToken"), str):
         raise ProviderError(tr("not signed in; open `{cmd}` and run /login", cmd=launch_command(account)))
-    if creds.get("expiresAt", 0) / 1000 < time.time():
+    if (creds.get("expiresAt") or 0) / 1000 < time.time():
         raise ProviderError(tr("token expired; open `{cmd}` to refresh it", cmd=launch_command(account)))
     headers = {"Authorization": "Bearer " + creds["accessToken"], "anthropic-beta": "oauth-2025-04-20"}
     return parse(request_json(URL, headers), plan=str(creds.get("subscriptionType", "?")))

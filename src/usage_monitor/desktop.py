@@ -16,6 +16,7 @@ from typing import IO, Any
 
 from .alerts import Alert
 from .i18n import tr
+from .system import QUIET, atomic_write_text
 
 log = logging.getLogger(__name__)
 LABEL = "dev.usage-monitor"
@@ -54,7 +55,7 @@ def notify_command(alert: Alert, platform: str = sys.platform) -> tuple[list[str
 def notify(alert: Alert) -> None:
     cmd, env = notify_command(alert)
     try:
-        subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, check=False, timeout=20)
+        subprocess.run(cmd, env={**os.environ, **env}, capture_output=True, check=False, timeout=20, **QUIET)
     except (OSError, subprocess.TimeoutExpired) as e:  # no notify-send, no PowerShell…: the panel still shows it
         log.warning("could not notify (%s): %s", e, alert.title)
 
@@ -127,8 +128,7 @@ def autostart_entry(command: list[str], platform: str = sys.platform, home: Path
 def set_autostart(enabled: bool, command: list[str]) -> Path:
     path, content = autostart_entry(command)
     if enabled:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8", newline="")
+        atomic_write_text(path, content)
     else:
         path.unlink(missing_ok=True)
     return path

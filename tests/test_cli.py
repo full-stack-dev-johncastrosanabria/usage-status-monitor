@@ -87,3 +87,25 @@ def test_autoswitch_command_persists(home: Path, capsys: pytest.CaptureFixture[s
     assert cli.main(["autoswitch", "on"]) == 0 and config.load_config().auto_switch is True
     assert "on (at 95%" in capsys.readouterr().out
     assert cli.main(["autoswitch", "off"]) == 0 and config.load_config().auto_switch is False
+
+
+def test_launcher_reopens_the_conversation_after_an_account_change(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    runs: list[tuple[list[str], str | None]] = []
+
+    def fake_call(cmd: list[str], env: dict[str, str]) -> int:
+        runs.append((cmd[1:], env.get("CLAUDE_CONFIG_DIR")))
+        if len(runs) == 1:  # the automatic switch happens while the first session runs
+            accounts.set_current(ClaudeAccount(2, "b@x", home / ".claude-b"))
+        return 0
+
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/bin/claude")
+    monkeypatch.setattr(subprocess, "call", fake_call)
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+    accounts.set_current(ClaudeAccount(1, "a@x", home / ".claude-a"))
+
+    assert cli.launch_claude(["--resume", "5d2e", "--chrome"]) == 0
+    assert runs == [
+        (["--resume", "5d2e", "--chrome"], str(home / ".claude-a")),
+        (["--continue", "--chrome"], str(home / ".claude-b")),
+    ]

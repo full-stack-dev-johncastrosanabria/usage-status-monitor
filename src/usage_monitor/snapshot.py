@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -14,6 +15,8 @@ from .i18n import tr
 from .models import AccountStatus, ClaudeAccount, Credits, ProviderError, Snapshot, Usage
 from .providers import antigravity, claude, codex, deepseek
 
+log = logging.getLogger(__name__)
+
 
 def _safe[T](fn: Callable[[], T]) -> T | str:
     """One source being down must never hide the others."""
@@ -21,8 +24,9 @@ def _safe[T](fn: Callable[[], T]) -> T | str:
         return fn()
     except ProviderError as e:
         return str(e)
-    except Exception as e:  # noqa: BLE001 — any failure of a source is shown, not raised
-        return tr("unexpected error: {error}", error=e)
+    except Exception as e:  # any failure of a source is shown, not raised
+        log.exception("a provider failed unexpectedly")
+        return tr("unexpected error: {error}", error=f"{type(e).__name__}: {e}")
 
 
 def _status(acc: ClaudeAccount, res: Usage | str, current: bool) -> AccountStatus:
@@ -83,7 +87,7 @@ def to_json(snap: Snapshot, cfg: Config) -> dict[str, Any]:
     try:
         # read every time: /model changes it too
         cfg_settings: dict[str, Any] = demo.settings_json() if demo.ENABLED else settings.read().to_json()
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, AttributeError) as e:  # missing, not JSON, or not an object
         cfg_settings = {"error": str(e)}
     return {
         "updated": snap.updated.isoformat(),

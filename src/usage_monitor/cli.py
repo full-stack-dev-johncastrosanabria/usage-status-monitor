@@ -10,15 +10,15 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.request
 from collections.abc import Callable
 
 from . import __version__, accounts, config, desktop, i18n, settings, sync
 from .alerts import session_warning, should_show, switch_notice
 from .config import Config, load_config, save_prefs
 from .i18n import tr
-from .server import is_running, serve
+from .server import is_running, local_json, port_in_use, serve
 from .snapshot import collect, collect_current, to_json
+from .system import atomic_write_text
 from .term import print_snapshot
 
 
@@ -93,13 +93,26 @@ def cmd_effort(args: argparse.Namespace, _: Config) -> int:
 def cmd_panel(_: argparse.Namespace, cfg: Config) -> int:
     url = f"http://127.0.0.1:{cfg.port}/"
     if not is_running(cfg.port):
+        log_path = config.CONFIG_DIR / "server.log"
+        if port_in_use(cfg.port):
+            print(
+                tr(
+                    "error: port {port} is used by another program; set another `port` in the configuration.",
+                    port=cfg.port,
+                ),
+                file=sys.stderr,
+            )
+            return 1
         config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        with (config.CONFIG_DIR / "server.log").open("a", encoding="utf-8") as log:
+        with log_path.open("a", encoding="utf-8") as log:
             desktop.spawn_detached([*self_command(), "server"], log)
-        for _attempt in range(50):
+        for _attempt in range(80):
             if is_running(cfg.port):
                 break
             time.sleep(0.1)
+        else:
+            print(tr("error: the server did not start; see {path}", path=log_path), file=sys.stderr)
+            return 1
     where = desktop.open_panel(url)
     print(tr("Panel opened in {where} ({url}).", where=where, url=url))
     print(tr("The server keeps running in the background and alerts at {p:.0f}%.", p=cfg.alert_at))
@@ -128,15 +141,17 @@ def cmd_watch(args: argparse.Namespace, cfg: Config) -> int:
 
 
 def cmd_sync(_: argparse.Namespace, __: Config) -> int:
-    try:
-        results = sync.sync_all()
-    except OSError as e:  # on Windows, creating symlinks needs Developer Mode
-        msg = tr("error: could not create the links ({error}). On Windows, turn on Developer Mode.", error=e)
-        print(msg, file=sys.stderr)
-        return 1
-    for path, done in results.items():
-        print(f"{str(path).replace(str(config.HOME), '~')}: {', '.join(done) or tr('already in sync')}")
-    return 0
+    failed = 0
+    for path in sync.account_dirs():  # one account failing must not hide what was done for the others
+        name = str(path).replace(str(config.HOME), "~")
+        try:
+            print(f"{name}: {', '.join(sync.sync_account(path)) or tr('already in sync')}")
+        except (OSError, ValueError) as e:  # on Windows, creating symlinks needs Developer Mode
+            failed += 1
+            print(tr("{name}: error: {error}", name=name, error=e), file=sys.stderr)
+            if getattr(e, "winerror", None) == 1314:
+                print(tr("On Windows, turn on Developer Mode to create links."), file=sys.stderr)
+    return 1 if failed else 0
 
 
 def cmd_autostart(args: argparse.Namespace, _: Config) -> int:
@@ -187,12 +202,11 @@ def hook_messages(cfg: Config) -> list[str]:
     messages = []
     if chosen and chosen != mine:
         shared = sync.shares_transcripts(mine.config_dir, chosen.config_dir)
-        messages.append(switch_notice(mine, chosen, can_continue=shared))
+        messages.append(switch_notice(mine, chosen, can_continue=shared, reopens=bool(os.environ.get(LAUNCHER))))
     try:  # only the local server's cache: a hook must not call the APIs on every message
-        with urllib.request.urlopen(f"http://127.0.0.1:{cfg.port}/api/data", timeout=1.5) as r:
-            if msg := session_warning(json.loads(r.read()), mine.number):
-                messages.append(msg)
-    except (OSError, ValueError):  # server not running
+        if msg := session_warning(local_json(cfg.port, "/api/data"), mine.number):
+            messages.append(msg)
+    except (OSError, ValueError, LookupError):  # server not running, or not ours
         pass
     return messages
 
@@ -208,25 +222,60 @@ def cmd_notice(_: argparse.Namespace, cfg: Config) -> int:
         except (OSError, ValueError):
             state = {}
         if text and should_show(state, str(hook.get("session_id", "cli")), text, time.time()):
-            config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            state_file.write_text(json.dumps(state), encoding="utf-8")
+            atomic_write_text(state_file, json.dumps(state))
             print(json.dumps({"systemMessage": "⚠ " + text}, ensure_ascii=False))
     except Exception:  # noqa: BLE001 — see the docstring
         pass
     return 0
 
 
+REOPEN_DELAY = 3  # seconds to cancel (Ctrl+C) before reopening on the new account
+LAUNCHER = "USAGE_MONITOR_LAUNCHER"  # tells the hook that /exit reopens the conversation by itself
+
+
+def _without_resume(args: list[str]) -> list[str]:
+    """Drops -c/--continue and -r/--resume [id]: the reopened session continues the latest conversation."""
+    out, skip = [], False
+    for a in args:
+        if skip and not a.startswith("-"):
+            skip = False
+            continue
+        skip = a in ("-r", "--resume")
+        if not (skip or a in ("-c", "--continue") or a.startswith("--resume=")):
+            out.append(a)
+    return out
+
+
 def launch_claude(args: list[str]) -> int:
-    """`usage claude …`: runs Claude Code with the selected account (the same in any shell and system)."""
+    """`usage claude …`: runs Claude Code with the selected account (the same in any shell and system).
+
+    A running session cannot change account. If the selection changes while it runs (`usage switch`, the
+    panel or the automatic switch), leaving it with /exit reopens the same conversation on the new account.
+    """
     exe = shutil.which("claude")
     if exe is None:
         print(tr("error: `claude` is not on the PATH."), file=sys.stderr)
         return 127
-    env = os.environ.copy()
-    if not env.get("CLAUDE_CONFIG_DIR") and (chosen := accounts.selected_dir()):
-        env["CLAUDE_CONFIG_DIR"] = str(chosen)
+    pinned = bool(os.environ.get("CLAUDE_CONFIG_DIR"))  # an explicit folder is never second-guessed
     try:
-        return subprocess.call([exe, *args], env=env)
+        while True:
+            env = os.environ | {LAUNCHER: "1"}
+            used = accounts.selected_dir()
+            if not pinned and used:
+                env["CLAUDE_CONFIG_DIR"] = str(used)
+            code = subprocess.call([exe, *args], env=env)
+            now = accounts.selected_dir()
+            if pinned or now == used or "-p" in args or "--print" in args:
+                return code
+            print(
+                tr(
+                    "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…",
+                    dir=str(now or "~/.claude").replace(str(config.HOME), "~"),
+                    s=REOPEN_DELAY,
+                )
+            )
+            time.sleep(REOPEN_DELAY)
+            args = ["--continue", *_without_resume(args)]
     except KeyboardInterrupt:
         return 130
 

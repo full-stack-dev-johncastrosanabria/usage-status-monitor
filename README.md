@@ -60,7 +60,8 @@ function claude { usage claude @args }      # PowerShell
 
 A Claude Code session cannot change account while it is open. With shared conversations (`usage sync`), after
 switching you only need to exit and run `claude --continue` to carry on the same conversation with the new
-account. The plugin reminds you inside the session itself.
+account. Sessions started through `usage claude` (or the alias above) do that for you: when the account changes
+while they run, `/exit` reopens the same conversation on the new account. The plugin tells you inside the session.
 
 ### Automatic switch
 

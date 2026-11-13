@@ -68,6 +68,12 @@ ES = {
     ),
     "No other account has room right now.": "Ninguna otra cuenta tiene margen ahora.",
     "Claude #{n} ({email}): {label} at {used:.0f}%.": "Claude #{n} ({email}): {label} al {used:.0f} %.",
+    "type /exit and this conversation reopens on #{n} by itself": (
+        "escribe /exit y esta conversación se reabre sola con la #{n}"
+    ),
+    "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
+        "Cambió la cuenta: reabriendo esta conversación con {dir} en {s} s (Ctrl+C cancela)…"
+    ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "sal y ejecuta `claude --continue` para seguir esta conversación con la #{n}"
     ),
@@ -113,8 +119,19 @@ ES = {
         "El servidor sigue en segundo plano y avisa al {p:.0f} %."
     ),
     "(refreshes every {s}s, Ctrl+C to quit)": "(se actualiza cada {s} s, Ctrl+C para salir)",
-    "error: could not create the links ({error}). On Windows, turn on Developer Mode.": (
-        "error: no pude crear los enlaces ({error}). En Windows, activa el Modo de desarrollador."
+    "unexpected response from the server": "respuesta inesperada del servidor",
+    "internal error; see the server log": "error interno; consulta el registro del servidor",
+    "request body too large": "la petición es demasiado grande",
+    "`{key}` must be text": "`{key}` debe ser texto",
+    "`{key}` must be a whole number": "`{key}` debe ser un número entero",
+    "`{key}` must be true or false": "`{key}` debe ser true o false",
+    "error: port {port} is used by another program; set another `port` in the configuration.": (
+        "error: otro programa usa el puerto {port}; elige otro `port` en la configuración."
+    ),
+    "error: the server did not start; see {path}": "error: el servidor no arrancó; consulta {path}",
+    "{name}: error: {error}": "{name}: error: {error}",
+    "On Windows, turn on Developer Mode to create links.": (
+        "En Windows, activa el Modo de desarrollador para poder crear enlaces."
     ),
     "already in sync": "ya sincronizada",
     "Start at login enabled ({path}).": "Inicio con el sistema activado ({path}).",
@@ -201,6 +218,10 @@ ZH = {
     ),
     "No other account has room right now.": "目前其他账号都没有余量。",
     "Claude #{n} ({email}): {label} at {used:.0f}%.": "Claude #{n}（{email}）：{label} 已用 {used:.0f}%。",
+    "type /exit and this conversation reopens on #{n} by itself": "输入 /exit，这段对话会自动用 #{n} 重新打开",
+    "Account changed: reopening this conversation on {dir} in {s} s (Ctrl+C cancels)…": (
+        "账户已切换：{s} 秒后用 {dir} 重新打开这段对话（Ctrl+C 取消）…"
+    ),
     "exit and run `claude --continue` to carry on this conversation with #{n}": (
         "请退出并运行 `claude --continue`，用 #{n} 继续这段对话"
     ),
@@ -246,9 +267,18 @@ ZH = {
         "服务器在后台继续运行，用量达到 {p:.0f}% 时提醒。"
     ),
     "(refreshes every {s}s, Ctrl+C to quit)": "（每 {s} 秒刷新，按 Ctrl+C 退出）",
-    "error: could not create the links ({error}). On Windows, turn on Developer Mode.": (
-        "错误：无法创建链接（{error}）。在 Windows 上请开启开发者模式。"
+    "unexpected response from the server": "服务器返回了意外的响应",
+    "internal error; see the server log": "内部错误；请查看服务器日志",
+    "request body too large": "请求内容过大",
+    "`{key}` must be text": "`{key}` 必须是文本",
+    "`{key}` must be a whole number": "`{key}` 必须是整数",
+    "`{key}` must be true or false": "`{key}` 必须是 true 或 false",
+    "error: port {port} is used by another program; set another `port` in the configuration.": (
+        "错误：端口 {port} 已被其他程序占用；请在配置中改用其他 `port`。"
     ),
+    "error: the server did not start; see {path}": "错误：服务器未能启动；请查看 {path}",
+    "{name}: error: {error}": "{name}：错误：{error}",
+    "On Windows, turn on Developer Mode to create links.": "在 Windows 上请开启开发者模式以创建链接。",
     "already in sync": "已同步",
     "Start at login enabled ({path}).": "已启用登录时启动（{path}）。",
     "Start at login disabled ({path}).": "已停用登录时启动（{path}）。",

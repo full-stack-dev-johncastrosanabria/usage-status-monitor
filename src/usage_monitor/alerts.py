@@ -24,7 +24,7 @@ def _roomy(best: AccountStatus | None, threshold: float) -> AccountStatus | None
 class AlertTracker:
     """Fires once when a window crosses the threshold and re-arms when usage drops again."""
 
-    _flagged: set[tuple[str, str]] = field(default_factory=set)
+    _flagged: set[tuple[str, int]] = field(default_factory=set)
 
     def check(self, snap: Snapshot, threshold: float) -> list[Alert]:
         """Watches the active Claude account, ChatGPT and every Antigravity model."""
@@ -43,10 +43,10 @@ class AlertTracker:
 
         alerts = []
         for name, who, usage, hint in watched:
-            for w in usage.windows:
+            for i, w in enumerate(usage.windows):
                 if not w.blocking:
                     continue
-                key = (f"{name}|{who}", w.label)
+                key = (f"{name}|{who}", i)  # position, not label: labels change with the language
                 if w.used >= threshold and key not in self._flagged:
                     self._flagged.add(key)
                     title = tr("{name}: {label} at {used:.0f}%", name=name, label=w.label, used=w.used)
@@ -103,10 +103,13 @@ def session_warning(payload: dict[str, Any], number: int) -> str | None:
     return f"{head} {tip}"
 
 
-def switch_notice(mine: ClaudeAccount, chosen: ClaudeAccount, can_continue: bool) -> str:
-    """Notice for an open session whose account is no longer the selected one."""
+def switch_notice(mine: ClaudeAccount, chosen: ClaudeAccount, can_continue: bool, reopens: bool = False) -> str:
+    """Notice for an open session whose account is no longer the selected one.
+    `reopens`: started by `usage claude`, which reopens the conversation on the new account after /exit."""
     how = (
-        tr("exit and run `claude --continue` to carry on this conversation with #{n}", n=chosen.number)
+        tr("type /exit and this conversation reopens on #{n} by itself", n=chosen.number)
+        if can_continue and reopens
+        else tr("exit and run `claude --continue` to carry on this conversation with #{n}", n=chosen.number)
         if can_continue
         else tr("new sessions will use it (run `usage sync` to continue conversations across accounts)")
     )

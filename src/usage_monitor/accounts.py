@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import config
 from .models import ClaudeAccount
+from .system import atomic_write_text
 
 
 def _norm(value: str | os.PathLike[str] | None) -> Path | None:
@@ -39,11 +40,7 @@ def current_dir() -> Path | None:
 
 
 def set_current(account: ClaudeAccount) -> None:
-    path = config.active_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(str(account.config_dir or ""), encoding="utf-8")
-    tmp.replace(path)
+    atomic_write_text(config.active_file(), str(account.config_dir or ""))
 
 
 def keychain_service(config_dir: Path | None) -> str:

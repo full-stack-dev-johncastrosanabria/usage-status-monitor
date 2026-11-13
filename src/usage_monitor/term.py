@@ -50,6 +50,8 @@ def print_credits(title: str, balance: Credits | str | None) -> None:
     if not isinstance(balance, Credits):
         print(f"{_c(BOLD)}{title}{_c(RESET)}: {balance or tr('no data')}\n")
         return
+    if not balance.balances:
+        print(f"{_c(BOLD)}{title}{_c(RESET)}: {tr('no data')}")
     for b in balance.balances:
         warn = "" if balance.available else f"  {_c(RED)}{tr('(no balance)')}{_c(RESET)}"
         amount = tr("balance {amount:.2f} {currency}", amount=b.total, currency=b.currency)

@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .config import HOME
 from .i18n import tr
+from .system import atomic_write_text
 
 SHARED = ("CLAUDE.md", "settings.json", "settings.local.json", "agents", "skills", "hooks", "plugins", "commands")
 # Conversations: sharing them is what lets `claude --continue` work under another account.
@@ -23,6 +24,7 @@ TRANSCRIPTS = "projects"
 def sync_account(account_dir: Path, main: Path | None = None, main_state: Path | None = None) -> list[str]:
     main = main or HOME / ".claude"
     main_state = main_state or HOME / ".claude.json"
+    main_mcp = json.loads(main_state.read_text(encoding="utf-8")).get("mcpServers") or {}  # fail before any change
     backup = account_dir / f"backup-sync-{time.strftime('%Y%m%d-%H%M%S')}"
     done: list[str] = []
 
@@ -40,7 +42,6 @@ def sync_account(account_dir: Path, main: Path | None = None, main_state: Path |
         dst.symlink_to(src)
         done.append(name)
 
-    main_mcp = json.loads(main_state.read_text(encoding="utf-8")).get("mcpServers") or {}
     state_file = account_dir / ".claude.json"
     data = json.loads(state_file.read_text(encoding="utf-8"))
     missing = {k: v for k, v in main_mcp.items() if k not in (data.get("mcpServers") or {})}
@@ -48,15 +49,13 @@ def sync_account(account_dir: Path, main: Path | None = None, main_state: Path |
         backup.mkdir(exist_ok=True)
         shutil.copy2(state_file, backup / ".claude.json")
         data.setdefault("mcpServers", {}).update(missing)
-        tmp = state_file.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.replace(state_file)
+        atomic_write_text(state_file, json.dumps(data, indent=2))
         done.append("mcpServers: " + ", ".join(missing))
     return done
 
 
-def sync_all() -> dict[Path, list[str]]:
-    return {d: sync_account(d) for d in sorted(HOME.glob(".claude-*")) if d.is_dir() and (d / ".claude.json").exists()}
+def account_dirs() -> list[Path]:
+    return [d for d in sorted(HOME.glob(".claude-*")) if d.is_dir() and (d / ".claude.json").exists()]
 
 
 def shares_transcripts(a: Path | None, b: Path | None) -> bool:

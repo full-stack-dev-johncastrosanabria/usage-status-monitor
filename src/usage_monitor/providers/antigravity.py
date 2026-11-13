@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import subprocess
+import sys
 import tempfile
 import time
 from typing import Any
@@ -14,10 +16,11 @@ from ..http import request_json
 from ..i18n import tr
 from ..keychain import read_secret
 from ..models import ProviderError, Usage, Window
+from ..system import QUIET
 from . import parse_iso
 
 BASE = "https://cloudcode-pa.googleapis.com/v1internal:"
-AGY = HOME / ".gemini" / "bin" / "agy"
+AGY = HOME / ".gemini" / "bin" / ("agy.exe" if sys.platform == "win32" else "agy")
 VENDORS = {
     "MODEL_PROVIDER_GOOGLE": "Gemini",
     "MODEL_PROVIDER_ANTHROPIC": "Anthropic",
@@ -67,14 +70,16 @@ def _token() -> tuple[str, str]:
     session = _session()
     if _expired(session) and AGY.exists():
         # agy renews its own token when it runs, so we never touch the refresh token
-        subprocess.run(
-            [str(AGY), "models"],
-            cwd=tempfile.gettempdir(),
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):  # then the token simply stays expired
+            subprocess.run(
+                [str(AGY), "models"],
+                cwd=tempfile.gettempdir(),
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=60,
+                check=False,
+                **QUIET,
+            )
         session = _session()
     if _expired(session):
         raise ProviderError(tr("token expired; open `agy` to refresh it"))
@@ -84,9 +89,9 @@ def _token() -> tuple[str, str]:
 def fetch() -> Usage:
     token, email = _token()
     headers = {"Authorization": "Bearer " + token, "User-Agent": "antigravity"}
-    if "project" not in _project:
+    if _project.get("email") != email:
         info = request_json(BASE + "loadCodeAssist", headers, {"metadata": {"ideType": "ANTIGRAVITY"}})
         tier = info.get("paidTier") or info.get("currentTier") or {}
-        _project.update(project=info.get("cloudaicompanionProject"), tier=tier.get("name", "?"))
+        _project.update(email=email, project=info.get("cloudaicompanionProject"), tier=tier.get("name", "?"))
     body = {"project": _project["project"]} if _project["project"] else {}
     return parse(request_json(BASE + "fetchAvailableModels", headers, body), plan=f"{email} · {_project['tier']}")

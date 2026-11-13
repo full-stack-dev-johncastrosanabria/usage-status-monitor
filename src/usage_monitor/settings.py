@@ -15,6 +15,7 @@ from typing import Any
 
 from .config import HOME
 from .i18n import tr
+from .system import atomic_write_text
 
 SETTINGS = HOME / ".claude" / "settings.json"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
@@ -112,7 +113,5 @@ def write(model: str | None = None, effort: str | None = None, path: Path | None
         if per_model is not None and "effortLevel" in per_model:
             per_model["effortLevel"] = effort
 
-    tmp = real.with_name(real.name + ".tmp-usage-monitor")
-    tmp.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(real)
+    atomic_write_text(real, json.dumps(d, indent=2, ensure_ascii=False) + "\n")
     return _from_dict(d)
